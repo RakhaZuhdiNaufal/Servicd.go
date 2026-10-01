@@ -46,33 +46,63 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (session) {
-        const r = (session.user.app_metadata?.role ??
-          session.user.user_metadata?.role ??
-          null) as 'admin' | 'customer' | null;
-        setRole(r);
-        setProfileId(session.user.user_metadata?.profile_id ?? null);
-        if (!r || !session.user.user_metadata?.profile_id) {
-          syncProfile(session.access_token);
+    let mounted = true;
+
+    async function initAuth() {
+      try {
+        const { data, error } = await supabase.auth.getSession();
+        if (error) {
+          console.warn('Auth session error, clearing stale credentials:', error.message);
+          await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
+          if (mounted) {
+            setSession(null);
+            setRole(null);
+            setProfileId(null);
+          }
+        } else if (mounted) {
+          const currentSession = data.session;
+          setSession(currentSession);
+          if (currentSession) {
+            const r = (currentSession.user.app_metadata?.role ??
+              currentSession.user.user_metadata?.role ??
+              null) as 'admin' | 'customer' | null;
+            setRole(r);
+            setProfileId(currentSession.user.user_metadata?.profile_id ?? null);
+            if (!r || !currentSession.user.user_metadata?.profile_id) {
+              syncProfile(currentSession.access_token);
+            }
+          }
+        }
+      } catch (err: any) {
+        console.warn('Auth init failed:', err?.message);
+        await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
+        if (mounted) {
+          setSession(null);
+          setRole(null);
+          setProfileId(null);
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false);
         }
       }
-      setLoading(false);
-    });
+    }
+
+    initAuth();
 
     const {
       data: { subscription }
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      if (session) {
-        const r = (session.user.app_metadata?.role ??
-          session.user.user_metadata?.role ??
+    } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      if (!mounted) return;
+      setSession(newSession);
+      if (newSession) {
+        const r = (newSession.user.app_metadata?.role ??
+          newSession.user.user_metadata?.role ??
           null) as 'admin' | 'customer' | null;
         setRole(r);
-        setProfileId(session.user.user_metadata?.profile_id ?? null);
-        if (!session.user.user_metadata?.profile_id) {
-          syncProfile(session.access_token);
+        setProfileId(newSession.user.user_metadata?.profile_id ?? null);
+        if (!newSession.user.user_metadata?.profile_id) {
+          syncProfile(newSession.access_token);
         }
       } else {
         setRole(null);
@@ -80,7 +110,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   return (

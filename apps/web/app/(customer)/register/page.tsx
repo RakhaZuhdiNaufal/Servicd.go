@@ -26,27 +26,45 @@ export default function RegisterPage() {
   });
 
   async function onSubmit({ email, password, full_name, phone }: Form) {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { full_name, phone } }
-    });
-    if (error) { toast.error(error.message); return; }
-
-    // Sync profile immediately after signup
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.access_token) {
-      await fetch('/api/v1/auth/sync-profile', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json'
-        }
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { data: { full_name, phone } }
       });
-    }
+      if (error) {
+        if (
+          error.status === 429 ||
+          error.message?.toLowerCase().includes('rate limit') ||
+          error.message?.toLowerCase().includes('too many')
+        ) {
+          toast.error(
+            'Terlalu banyak percobaan pendaftaran (Rate Limit Supabase). Harap tunggu 1-2 menit atau matikan opsi "Confirm email" di Supabase Dashboard.'
+          );
+        } else {
+          toast.error(error.message);
+        }
+        return;
+      }
 
-    toast.success('Akun berhasil dibuat! Selamat datang di ServiceGo.');
-    router.replace('/');
+      if (data.session?.access_token) {
+        await fetch('/api/v1/auth/sync-profile', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${data.session.access_token}`,
+            'Content-Type': 'application/json'
+          }
+        }).catch(() => {});
+        toast.success('Akun berhasil dibuat! Selamat datang di ServiceGo.');
+        router.replace('/');
+      } else {
+        toast.success('Pendaftaran berhasil! Silakan masuk dengan akun baru Anda.');
+        router.replace('/login');
+      }
+    } catch (err: any) {
+      console.error('Register error:', err);
+      toast.error(err.message || 'Gagal menghubungi server autentikasi. Silakan coba lagi.');
+    }
   }
 
   return (

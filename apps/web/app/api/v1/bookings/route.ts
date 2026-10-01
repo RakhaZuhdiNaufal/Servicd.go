@@ -107,11 +107,19 @@ export async function POST(request: NextRequest) {
 
     const scheduledDate = new Date(scheduled_at);
 
+    // Hitung durasi dinamis berdasarkan layanan yang dipilih: window = scheduled_at ± (duration / 2)
+    const totalDurationMinutes = services.reduce(
+      (sum, s) => sum + (s.duration_minutes || 30),
+      0
+    );
+    const durationMinutes = Math.max(30, totalDurationMinutes);
+    const halfDurationMs = Math.round((durationMinutes / 2) * 60 * 1000);
+
     // 4. Jalankan Transaksi Database Atomic (Cek bentrok + Insert Booking + Insert BookingService + Insert History)
     const result = await prisma.$transaction(async (tx) => {
-      // Cek jumlah booking aktif pada slot waktu tersebut
-      const timeWindowStart = new Date(scheduledDate.getTime() - 29 * 60 * 1000);
-      const timeWindowEnd = new Date(scheduledDate.getTime() + 29 * 60 * 1000);
+      // Cek jumlah booking aktif pada slot waktu tersebut dengan window dinamis
+      const timeWindowStart = new Date(scheduledDate.getTime() - halfDurationMs);
+      const timeWindowEnd = new Date(scheduledDate.getTime() + halfDurationMs);
 
       const bookedCount = await tx.booking.count({
         where: {

@@ -68,6 +68,10 @@ export async function GET(request: NextRequest) {
       }
     });
 
+    const durationParam = parseInt(searchParams.get('duration_minutes') || '60', 10);
+    const durationMinutes = isNaN(durationParam) || durationParam < 15 ? 60 : durationParam;
+    const halfDurationMs = Math.round((durationMinutes / 2) * 60 * 1000);
+
     // Hitung per slot jam
     const slots = OPERATING_SLOTS.map((timeStr) => {
       const [hours, minutes] = timeStr.split(':').map(Number);
@@ -80,10 +84,10 @@ export async function GET(request: NextRequest) {
         0
       ));
 
-      // Hitung booking yang cocok dengan jam ini (toleransi dalam 1 jam)
+      // Hitung booking yang overlap dengan window slot ini: slotTime ± (duration / 2)
       const bookedCount = existingBookings.filter((b) => {
         const bTime = new Date(b.scheduled_at);
-        return Math.abs(bTime.getTime() - slotTime.getTime()) < 30 * 60 * 1000;
+        return Math.abs(bTime.getTime() - slotTime.getTime()) < halfDurationMs;
       }).length;
 
       const remaining = Math.max(0, capacityPerSlot - bookedCount);

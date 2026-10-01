@@ -22,19 +22,83 @@ const DUMMY_AUTH_ID_CUSTOMER_2 = '00000000-0000-0000-0000-000000000003';
 async function main() {
   console.log('Seeding database ServiceGo...');
 
-  // 1. Branch
-  const branch = await prisma.branch.upsert({
+  // 1. Branches (5 Official Locations: 2 Depok, 1 Bogor, 2 Jakarta)
+  const branch1 = await prisma.branch.upsert({
     where: { id: '11111111-1111-1111-1111-111111111111' },
-    update: {},
+    update: {
+      name: 'ServiceGo Kebon Jeruk (Jakarta Barat)',
+      address: 'Jl. Raya Perjuangan No. 88, Kebon Jeruk, Jakarta Barat'
+    },
     create: {
       id: '11111111-1111-1111-1111-111111111111',
-      name: 'ServiceGo Pusat - Kebon Jeruk',
-      address: 'Jl. Raya Perjuangan No. 88, Jakarta Barat',
+      name: 'ServiceGo Kebon Jeruk (Jakarta Barat)',
+      address: 'Jl. Raya Perjuangan No. 88, Kebon Jeruk, Jakarta Barat',
       phone: '021-5551234',
       capacity_per_slot: 3
     }
   });
-  console.log(`Branch created: ${branch.name}`);
+
+  const branch2 = await prisma.branch.upsert({
+    where: { id: '11111111-1111-1111-1111-111111111112' },
+    update: {
+      name: 'ServiceGo Fatmawati (Jakarta Selatan)',
+      address: 'Jl. RS Fatmawati Raya No. 15, Cilandak, Jakarta Selatan'
+    },
+    create: {
+      id: '11111111-1111-1111-1111-111111111112',
+      name: 'ServiceGo Fatmawati (Jakarta Selatan)',
+      address: 'Jl. RS Fatmawati Raya No. 15, Cilandak, Jakarta Selatan',
+      phone: '021-7661234',
+      capacity_per_slot: 3
+    }
+  });
+
+  const branch3 = await prisma.branch.upsert({
+    where: { id: '11111111-1111-1111-1111-111111111113' },
+    update: {
+      name: 'ServiceGo Margonda Depok',
+      address: 'Jl. Margonda Raya No. 45, Pondok Cina, Beji, Kota Depok'
+    },
+    create: {
+      id: '11111111-1111-1111-1111-111111111113',
+      name: 'ServiceGo Margonda Depok',
+      address: 'Jl. Margonda Raya No. 45, Pondok Cina, Beji, Kota Depok',
+      phone: '021-77201234',
+      capacity_per_slot: 3
+    }
+  });
+
+  const branch4 = await prisma.branch.upsert({
+    where: { id: '11111111-1111-1111-1111-111111111114' },
+    update: {
+      name: 'ServiceGo Cinere Depok',
+      address: 'Jl. Cinere Raya No. 12, Cinere, Kota Depok'
+    },
+    create: {
+      id: '11111111-1111-1111-1111-111111111114',
+      name: 'ServiceGo Cinere Depok',
+      address: 'Jl. Cinere Raya No. 12, Cinere, Kota Depok',
+      phone: '021-75405678',
+      capacity_per_slot: 3
+    }
+  });
+
+  const branch5 = await prisma.branch.upsert({
+    where: { id: '11111111-1111-1111-1111-111111111115' },
+    update: {
+      name: 'ServiceGo Pajajaran Bogor',
+      address: 'Jl. Raya Pajajaran No. 28, Bantarjati, Kota Bogor'
+    },
+    create: {
+      id: '11111111-1111-1111-1111-111111111115',
+      name: 'ServiceGo Pajajaran Bogor',
+      address: 'Jl. Raya Pajajaran No. 28, Bantarjati, Kota Bogor',
+      phone: '0251-8321456',
+      capacity_per_slot: 3
+    }
+  });
+  console.log(`5 ServiceGo Branches seeded.`);
+  const branch = branch1;
 
   // 2. Mechanics
   const mechanic1 = await prisma.mechanic.upsert({
@@ -62,8 +126,9 @@ async function main() {
   });
   console.log(`Mechanics created: ${mechanic1.full_name}, ${mechanic2.full_name}`);
 
-  // 3. Services (5 services)
+  // 3. Services (22 services across 7 categories)
   const servicesData = [
+    // Mesin & Performa
     {
       id: '33333333-3333-3333-3333-333333333301',
       name: 'Servis Rutin / Tune-up',
@@ -73,35 +138,183 @@ async function main() {
       is_active: true
     },
     {
+      id: '33333333-3333-3333-3333-333333333306',
+      name: 'Carbon Clean / Gurah Mesin',
+      description: 'Pembersihan kerak karbon ruang bakar silinder untuk memulihkan akselerasi dan efisiensi BBM.',
+      price: 350000,
+      duration_minutes: 45,
+      is_active: true
+    },
+    {
+      id: '33333333-3333-3333-3333-333333333307',
+      name: 'Pembersihan Throttle Body & Kalibrasi',
+      description: 'Pembersihan katup gas throttle body dan reset sensor injeksi idle learn.',
+      price: 125000,
+      duration_minutes: 30,
+      is_active: true
+    },
+    {
+      id: '33333333-3333-3333-3333-333333333308',
+      name: 'Overhaul Ringan & Skir Klep',
+      description: 'Pembersihan kerak klep mesin, penggantian paking deksel, dan uji kompresi silinder.',
+      price: 750000,
+      duration_minutes: 150,
+      is_active: true
+    },
+
+    // Oli & Cairan
+    {
       id: '33333333-3333-3333-3333-333333333302',
       name: 'Ganti Oli Mesin + Filter',
-      description: 'Penggantian oli mesin full synthetic dan filter oli baru.',
+      description: 'Penggantian oli mesin full synthetic dan filter oli baru original.',
       price: 175000,
       duration_minutes: 30,
       is_active: true
     },
     {
+      id: '33333333-3333-3333-3333-333333333309',
+      name: 'Kuras & Flushing Oli Transmisi Matic',
+      description: 'Flushing total sirkulasi oli transmisi otomatis (ATF/CVT) dengan mesin dialiser presisi.',
+      price: 300000,
+      duration_minutes: 45,
+      is_active: true
+    },
+    {
+      id: '33333333-3333-3333-3333-333333333310',
+      name: 'Ganti Oli Gardan & Diferensial',
+      description: 'Penggantian oli pelumas gardan roda belakang dengan formulasi heavy duty gear.',
+      price: 130000,
+      duration_minutes: 25,
+      is_active: true
+    },
+    {
+      id: '33333333-3333-3333-3333-333333333311',
+      name: 'Kuras Radiator & Coolant Flush',
+      description: 'Pengurasan total cairan pendingin radiator dan pengisian air pendingin radiator coolant anti-rust.',
+      price: 140000,
+      duration_minutes: 30,
+      is_active: true
+    },
+
+    // Rem
+    {
       id: '33333333-3333-3333-3333-333333333303',
       name: 'Servis Rem & Flushing Minyak Rem',
-      description: 'Pembersihan kanvas rem, cek piringan rotor, dan penggantian minyak rem.',
+      description: 'Pembersihan kanvas rem 4 roda, cek piringan rotor, dan bleeding minyak rem DOT 4.',
       price: 150000,
       duration_minutes: 45,
       is_active: true
     },
     {
+      id: '33333333-3333-3333-3333-333333333312',
+      name: 'Ganti Kampas Rem Depan / Belakang',
+      description: 'Pemasangan kampas rem baru original, pelumasan pin kaliper, dan uji pengereman.',
+      price: 180000,
+      duration_minutes: 40,
+      is_active: true
+    },
+    {
+      id: '33333333-3333-3333-3333-333333333313',
+      name: 'Bubut Piringan Rotor Rem (Disc)',
+      description: 'Perataan permukaan piringan rem cakram bergelombang agar pengereman stabil tanpa getar.',
+      price: 220000,
+      duration_minutes: 60,
+      is_active: true
+    },
+
+    // Kelistrikan & Aki
+    {
+      id: '33333333-3333-3333-3333-333333333305',
+      name: 'Cek & Servis Kelistrikan / Aki',
+      description: 'Diagnosa scanner OBD2 kelistrikan, uji alternator, dinamo starter, dan uji beban aki.',
+      price: 120000,
+      duration_minutes: 30,
+      is_active: true
+    },
+    {
+      id: '33333333-3333-3333-3333-333333333314',
+      name: 'Ganti Aki Baru & Uji Dinamo Starter',
+      description: 'Pemasangan aki maintenance free baru dan penyesuaian voltase pengisian alternator.',
+      price: 150000,
+      duration_minutes: 25,
+      is_active: true
+    },
+    {
+      id: '33333333-3333-3333-3333-333333333315',
+      name: 'Instalasi & Servis Lampu LED Proyektor',
+      description: 'Upgrade lampu utama headlamp projektor LED dan leveling fokus sorot cahaya malam.',
+      price: 175000,
+      duration_minutes: 45,
+      is_active: true
+    },
+
+    // AC & Pendingin Kabin
+    {
+      id: '33333333-3333-3333-3333-333333333316',
+      name: 'Servis AC Rutin & Fogging Kabin',
+      description: 'Pembersihan blower, semprot pembersih evaporator, dan fogging antibakteri kabin mobil.',
+      price: 195000,
+      duration_minutes: 45,
+      is_active: true
+    },
+    {
+      id: '33333333-3333-3333-3333-333333333317',
+      name: 'Kuras Freon & Isi Oli Kompresor AC',
+      description: 'Pengosongan vakum sirkulasi AC, pengisian freon murni R134a, dan oli kompresor dingin maksimal.',
+      price: 280000,
+      duration_minutes: 50,
+      is_active: true
+    },
+    {
+      id: '33333333-3333-3333-3333-333333333318',
+      name: 'Ganti Filter Kabin AC (PM 2.5)',
+      description: 'Penggantian filter AC kabin karbon aktif penangkal debu, polusi, dan bau tak sedap.',
+      price: 95000,
+      duration_minutes: 15,
+      is_active: true
+    },
+
+    // Pemasangan Kaca Film & Detailing
+    {
+      id: '33333333-3333-3333-3333-333333333319',
+      name: 'Pemasangan Kaca Film Full Kaca',
+      description: 'Pemasangan kaca film tolak panas UV & Infrared 99% bergaransi 5 tahun (depan, samping, belakang).',
+      price: 650000,
+      duration_minutes: 120,
+      is_active: true
+    },
+    {
+      id: '33333333-3333-3333-3333-333333333320',
+      name: 'Pembersihan Jamur Kaca & Water Spot',
+      description: 'Poles pembersih kerak jamur kaca depan dan samping dengan lapisan repellent air hujan.',
+      price: 180000,
+      duration_minutes: 45,
+      is_active: true
+    },
+    {
+      id: '33333333-3333-3333-3333-333333333321',
+      name: 'Poles Bodi & Detailing Eksterior',
+      description: 'Poles bodi 2 tahap penghilang baret halus (swirl mark), wax mengkilap dan perlindungan cat.',
+      price: 450000,
+      duration_minutes: 90,
+      is_active: true
+    },
+
+    // Kaki-kaki & Ban
+    {
       id: '33333333-3333-3333-3333-333333333304',
       name: 'Spooring & Balancing 4 Roda',
-      description: 'Penyelarasan sudut roda presisi komputer 3D dan balancing roda.',
+      description: 'Penyelarasan sudut roda presisi komputer 3D dan balancing bobot putaran roda.',
       price: 200000,
       duration_minutes: 45,
       is_active: true
     },
     {
-      id: '33333333-3333-3333-3333-333333333305',
-      name: 'Cek & Servis Kelistrikan / Aki',
-      description: 'Diagnosa kelistrikan scanner OBD2, alternator, dynamo starter, dan tes beban aki.',
-      price: 120000,
-      duration_minutes: 30,
+      id: '33333333-3333-3333-3333-333333333322',
+      name: 'Inspeksi Kaki-kaki & Shockbreaker',
+      description: 'Pemeriksaan tie rod, ball joint, karet bushing arm, dan uji kebocoran shockbreaker.',
+      price: 135000,
+      duration_minutes: 35,
       is_active: true
     }
   ];
@@ -109,11 +322,17 @@ async function main() {
   for (const s of servicesData) {
     await prisma.service.upsert({
       where: { id: s.id },
-      update: {},
+      update: {
+        name: s.name,
+        description: s.description,
+        price: s.price,
+        duration_minutes: s.duration_minutes,
+        is_active: s.is_active
+      },
       create: s
     });
   }
-  console.log(`5 Services created successfully`);
+  console.log(`${servicesData.length} Services created/updated successfully`);
 
   // 4. Profiles (1 admin, 2 customers)
   const adminProfile = await prisma.profile.upsert({
@@ -158,7 +377,12 @@ async function main() {
 
   // 5. Sample Vehicles for customers
   await prisma.vehicle.upsert({
-    where: { plate_number: 'B 1234 SG' },
+    where: {
+      owner_id_plate_number: {
+        owner_id: customerProfile1.id,
+        plate_number: 'B 1234 SG'
+      }
+    },
     update: {},
     create: {
       id: '55555555-5555-5555-5555-555555555501',
@@ -173,7 +397,12 @@ async function main() {
   });
 
   await prisma.vehicle.upsert({
-    where: { plate_number: 'B 5678 GO' },
+    where: {
+      owner_id_plate_number: {
+        owner_id: customerProfile2.id,
+        plate_number: 'B 5678 GO'
+      }
+    },
     update: {},
     create: {
       id: '55555555-5555-5555-5555-555555555502',

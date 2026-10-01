@@ -1,16 +1,17 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'next/navigation';
 import { fetcher } from '@/lib/fetcher';
 import { SkeletonTable } from '@/components/skeletons';
 import { StatusBadge } from '@/components/status-badge';
 import { toast } from 'sonner';
-import { LayoutGrid, Table2, Filter, ChevronLeft, ChevronRight } from 'lucide-react';
+import { LayoutGrid, Table2, Filter, ChevronLeft, ChevronRight, Camera, Upload, Wrench } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { DragDropContext, Droppable, Draggable, type DropResult } from '@hello-pangea/dnd';
 import { clsx } from 'clsx';
+import { supabase } from '@/lib/supabase-client';
 
 type BookingStatus = 'menunggu' | 'diproses' | 'selesai' | 'dibatalkan';
 
@@ -22,7 +23,9 @@ interface Booking {
   estimated_cost: number;
   customer: { id: string; full_name: string; phone: string; email: string };
   vehicle: { plate_number: string; brand: string; model: string; vehicle_type: string };
-  mechanic: { id: string; full_name: string } | null;
+  branch?: { id: string; name: string } | null;
+  mechanic: { id: string; full_name: string; specialty?: string } | null;
+  photos?: Array<{ id: string; photo_url: string; stage: 'checkin' | 'checkout'; caption: string | null }>;
   booking_services: Array<{ service: { name: string; price: number } }>;
 }
 
@@ -40,7 +43,7 @@ const KANBAN_COLS: { id: BookingStatus; label: string }[] = [
 const formatRp = (v: number) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(v);
 
-export default function BookingsPage() {
+function BookingsPageContent() {
   const searchParams = useSearchParams();
   const qc = useQueryClient();
   const [view, setView] = useState<'table' | 'kanban'>('table');
@@ -85,8 +88,13 @@ export default function BookingsPage() {
     onError: (e: Error) => toast.error(e.message)
   });
 
-  // Assign mechanic (gap: no mechanic list endpoint — use text input)
-  const [mechanicInput, setMechanicInput] = useState('');
+  // Mechanics query for assignment dropdown
+  const { data: mechanics = [] } = useQuery<Array<{ id: string; full_name: string; specialty: string; active_jobs_count: number }>>({
+    queryKey: ['admin-mechanics'],
+    queryFn: () => fetcher('/admin/mechanics?is_active=true')
+  });
+
+  const [selectedMechanicId, setSelectedMechanicId] = useState('');
   const assignMutation = useMutation({
     mutationFn: ({ id, mechanic_id }: { id: string; mechanic_id: string }) =>
       fetcher(`/admin/bookings/${id}/assign`, {
@@ -94,12 +102,48 @@ export default function BookingsPage() {
         body: JSON.stringify({ mechanic_id })
       }),
     onSuccess: () => {
-      toast.success('Mekanik di-assign');
+      toast.success('Mekanik berhasil ditugaskan');
       qc.invalidateQueries({ queryKey: ['admin-bookings'] });
-      setMechanicInput('');
+      qc.invalidateQueries({ queryKey: ['admin-mechanics'] });
+      setSelectedMechanicId('');
     },
     onError: (e: Error) => toast.error(e.message)
   });
+
+  // Photo upload state & handler
+  const [uploadStage, setUploadStage] = useState<'checkin' | 'checkout'>('checkin');
+  const [uploadCaption, setUploadCaption] = useState('');
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+
+  async function handleUploadPhoto(bookingId: string, file: File) {
+    try {
+      setIsUploadingPhoto(true);
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('stage', uploadStage);
+      if (uploadCaption) formData.append('caption', uploadCaption);
+
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch(`/api/v1/admin/bookings/${bookingId}/photos`, {
+        method: 'POST',
+        headers,
+        body: formData
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Gagal mengunggah foto');
+      toast.success('Foto kondisi kendaraan berhasil diunggah');
+      qc.invalidateQueries({ queryKey: ['admin-bookings'] });
+      setUploadCaption('');
+    } catch (err: any) {
+      toast.error(err.message || 'Gagal upload foto');
+    } finally {
+      setIsUploadingPhoto(false);
+    }
+  }
 
   // Kanban drag-drop — optimistic update
   function onDragEnd(result: DropResult) {
@@ -384,33 +428,125 @@ export default function BookingsPage() {
                   </div>
                 </div>
 
-                {/* Assign mechanic — gap notice */}
+                {/* Assign mechanic */}
                 <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-700">
-                  <p className="font-semibold text-slate-700 dark:text-slate-300">
-                    Assign Mekanik
+                  <div className="flex items-center justify-between">
+                    <p className="font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                      <Wrench className="h-4 w-4 text-primary-500" />
+                      Assign Mekanik
+                    </p>
                     {detailBooking.mechanic && (
-                      <span className="ml-2 text-xs text-slate-500 font-normal">
-                        (saat ini: {detailBooking.mechanic.full_name})
+                      <span className="text-xs text-primary-700 dark:text-primary-300 bg-primary-50 dark:bg-primary-950/60 px-2 py-0.5 rounded border border-primary-200 dark:border-primary-800">
+                        {detailBooking.mechanic.full_name} {detailBooking.mechanic.specialty ? `(${detailBooking.mechanic.specialty})` : ''}
                       </span>
                     )}
-                  </p>
-                  <p className="text-xs text-amber-600 dark:text-amber-400">
-                    ⚠ Endpoint daftar mekanik belum tersedia — masukkan UUID mekanik secara manual.
-                  </p>
+                  </div>
                   <div className="flex gap-2">
-                    <input
-                      value={mechanicInput}
-                      onChange={(e) => setMechanicInput(e.target.value)}
-                      placeholder="UUID mekanik…"
-                      className="flex-1 rounded-sm border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-xs font-data focus:outline-none focus:ring-1 focus:ring-primary-500"
-                    />
+                    <select
+                      value={selectedMechanicId || detailBooking.mechanic?.id || ''}
+                      onChange={(e) => setSelectedMechanicId(e.target.value)}
+                      className="flex-1 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                    >
+                      <option value="">-- Pilih Mekanik --</option>
+                      {mechanics.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.full_name} ({m.specialty}) {m.active_jobs_count > 0 ? `• ${m.active_jobs_count} job aktif` : '• Tersedia'}
+                        </option>
+                      ))}
+                    </select>
                     <button
-                      disabled={!mechanicInput || assignMutation.isPending}
-                      onClick={() => assignMutation.mutate({ id: detailBooking.id, mechanic_id: mechanicInput })}
+                      disabled={!selectedMechanicId || selectedMechanicId === detailBooking.mechanic?.id || assignMutation.isPending}
+                      onClick={() => assignMutation.mutate({ id: detailBooking.id, mechanic_id: selectedMechanicId })}
                       className="rounded-md bg-primary-600 hover:bg-primary-700 text-white px-3 py-2 text-xs font-medium transition disabled:opacity-50"
                     >
-                      Assign
+                      {assignMutation.isPending ? 'Menyimpan...' : 'Assign'}
                     </button>
+                  </div>
+                </div>
+
+                {/* Foto Kondisi Kendaraan (Checkin / Checkout) */}
+                <div className="space-y-3 pt-3 border-t border-slate-200 dark:border-slate-700">
+                  <div className="flex items-center justify-between">
+                    <p className="font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                      <Camera className="h-4 w-4 text-primary-500" />
+                      Foto Kondisi Kendaraan
+                    </p>
+                    <span className="text-xs text-slate-400">
+                      {detailBooking.photos?.length ?? 0} foto
+                    </span>
+                  </div>
+
+                  {/* List Foto */}
+                  {detailBooking.photos && detailBooking.photos.length > 0 ? (
+                    <div className="grid grid-cols-2 gap-2">
+                      {detailBooking.photos.map((p) => (
+                        <div key={p.id} className="relative rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden bg-slate-50 dark:bg-slate-800 group">
+                          <img
+                            src={p.photo_url}
+                            alt={p.caption || p.stage}
+                            className="w-full h-24 object-cover"
+                            onError={(e) => {
+                              // Fallback display if URL not yet in storage
+                              (e.target as HTMLElement).style.display = 'none';
+                            }}
+                          />
+                          <div className="p-1.5 text-xs">
+                            <span className={clsx(
+                              'inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider',
+                              p.stage === 'checkin'
+                                ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300'
+                                : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300'
+                            )}>
+                              {p.stage}
+                            </span>
+                            {p.caption && (
+                              <p className="mt-1 text-slate-600 dark:text-slate-400 truncate text-[11px]">{p.caption}</p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-400 italic">Belum ada foto kondisi yang diunggah.</p>
+                  )}
+
+                  {/* Form Upload Foto */}
+                  <div className="rounded-md border border-dashed border-slate-300 dark:border-slate-600 p-3 space-y-2 bg-slate-50/50 dark:bg-slate-850/50">
+                    <p className="text-xs font-medium text-slate-700 dark:text-slate-300">Unggah Foto Baru</p>
+                    <div className="flex gap-2">
+                      <select
+                        value={uploadStage}
+                        onChange={(e) => setUploadStage(e.target.value as 'checkin' | 'checkout')}
+                        className="rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-2 py-1 text-xs"
+                      >
+                        <option value="checkin">Check-in (Awal Masuk)</option>
+                        <option value="checkout">Check-out (Pasca Servis)</option>
+                      </select>
+                      <input
+                        value={uploadCaption}
+                        onChange={(e) => setUploadCaption(e.target.value)}
+                        placeholder="Keterangan foto (opsional)..."
+                        className="flex-1 rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-2 py-1 text-xs"
+                      />
+                    </div>
+                    <label className={clsx(
+                      'flex items-center justify-center gap-1.5 w-full py-2 rounded border border-primary-300 dark:border-primary-700 bg-primary-50 dark:bg-primary-950/40 text-primary-700 dark:text-primary-300 text-xs font-medium cursor-pointer hover:bg-primary-100 transition',
+                      isUploadingPhoto && 'opacity-50 pointer-events-none'
+                    )}>
+                      <Upload className="h-3.5 w-3.5" />
+                      <span>{isUploadingPhoto ? 'Mengunggah...' : 'Pilih & Upload Foto'}</span>
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/jpg"
+                        className="hidden"
+                        disabled={isUploadingPhoto}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleUploadPhoto(detailBooking.id, file);
+                          e.target.value = '';
+                        }}
+                      />
+                    </label>
                   </div>
                 </div>
               </div>
@@ -423,5 +559,13 @@ export default function BookingsPage() {
         </SheetContent>
       </Sheet>
     </div>
+  );
+}
+
+export default function BookingsPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-slate-400">Memuat data booking...</div>}>
+      <BookingsPageContent />
+    </Suspense>
   );
 }

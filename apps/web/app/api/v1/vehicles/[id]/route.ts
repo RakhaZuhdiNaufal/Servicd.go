@@ -35,6 +35,22 @@ export async function PUT(
       return apiError(parsed.error.errors[0]?.message || 'Validasi gagal', 422, parsed.error.format());
     }
 
+    if (parsed.data.plate_number && parsed.data.plate_number.trim() !== vehicle.plate_number) {
+      const duplicate = await prisma.vehicle.findFirst({
+        where: {
+          owner_id: vehicle.owner_id,
+          plate_number: {
+            equals: parsed.data.plate_number.trim(),
+            mode: 'insensitive'
+          },
+          id: { not: id }
+        }
+      });
+      if (duplicate) {
+        return apiError('Nomor plat ini sudah terdaftar pada kendaraan Anda yang lain', 409);
+      }
+    }
+
     const updated = await prisma.vehicle.update({
       where: { id },
       data: {

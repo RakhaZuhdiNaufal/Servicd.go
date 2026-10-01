@@ -64,10 +64,28 @@ export async function GET(request: NextRequest) {
             }
           },
           vehicle: true,
+          branch: {
+            select: {
+              id: true,
+              name: true,
+              address: true,
+              phone: true
+            }
+          },
           mechanic: {
             select: {
               id: true,
-              full_name: true
+              full_name: true,
+              specialty: true
+            }
+          },
+          photos: {
+            select: {
+              id: true,
+              photo_url: true,
+              stage: true,
+              caption: true,
+              uploaded_at: true
             }
           },
           booking_services: {

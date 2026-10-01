@@ -68,7 +68,7 @@ model Profile {
 model Vehicle {
   id               String      @id @default(uuid()) @db.Uuid
   owner_id         String      @db.Uuid
-  plate_number     String      @unique
+  plate_number     String
   brand            String
   model            String
   year             Int
@@ -79,6 +79,7 @@ model Vehicle {
   owner    Profile   @relation(fields: [owner_id], references: [id], onDelete: Cascade)
   bookings Booking[]
 
+  @@unique([owner_id, plate_number])
   @@map("vehicles")
 }
 

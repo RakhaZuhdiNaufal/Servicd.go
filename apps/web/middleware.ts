@@ -3,7 +3,10 @@ import { getSupabaseAnon, getSupabaseAdmin } from '@/lib/supabase';
 
 // Daftar endpoint API publik yang tidak memerlukan autentikasi
 const PUBLIC_API_ROUTES = [
-  { path: '/api/v1/services', method: 'GET' }
+  { path: '/api/v1/services', method: 'GET' },
+  { path: '/api/v1/branches', method: 'GET' },
+  { path: '/api/v1/bookings/available-slots', method: 'GET' },
+  { path: '/api/v1/promos', method: 'GET' }
 ];
 
 export async function middleware(request: NextRequest) {

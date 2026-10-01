@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
-  LayoutDashboard, Calendar, Users, Car, Wrench, Menu, X,
+  LayoutDashboard, Calendar, Users, Car, Wrench, UserCog, Menu, X,
   Bell, LogOut, ChevronDown, Search
 } from 'lucide-react';
 import { clsx } from 'clsx';
@@ -19,7 +19,8 @@ const NAV = [
   { href: '/admin/bookings', label: 'Booking', icon: Calendar },
   { href: '/admin/customers', label: 'Pelanggan', icon: Users },
   { href: '/admin/vehicles', label: 'Kendaraan', icon: Car },
-  { href: '/admin/services', label: 'Layanan', icon: Wrench }
+  { href: '/admin/services', label: 'Layanan', icon: Wrench },
+  { href: '/admin/mechanics', label: 'Mekanik', icon: UserCog }
 ];
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
@@ -43,15 +44,15 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   if (!session) return null;
 
   // Notifications badge count
-  const { data: notifData } = useQuery({
+  const { data: notifData } = useQuery<{ unread_count: number; notifications: any[] } | any>({
     queryKey: ['notifications'],
-    queryFn: () => fetcher<{ data: any[] }>('/notifications').catch(() => null),
+    queryFn: () => fetcher('/notifications').catch(() => null),
     enabled: !!session,
     refetchInterval: 30_000
   });
-  const unreadCount = Array.isArray(notifData)
-    ? notifData.filter((n: any) => !n.is_read).length
-    : 0;
+  const unreadCount = typeof notifData?.unread_count === 'number'
+    ? notifData.unread_count
+    : (Array.isArray(notifData) ? notifData.filter((n: any) => !n.is_read).length : 0);
 
   // Ctrl+K shortcut
   useEffect(() => {
