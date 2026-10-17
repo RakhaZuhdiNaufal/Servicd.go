@@ -6,3 +6,4 @@ export * from './schemas/booking.schema';
 export * from './schemas/photo.schema';
 export * from './schemas/review.schema';
 export * from './schemas/customer.schema';
+export * from './promos';

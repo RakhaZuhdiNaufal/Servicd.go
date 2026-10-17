@@ -1,7 +1,5 @@
+import { AuthFrame } from '@/components/customer/auth-frame';
+
 export default function CustomerRegisterLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="min-h-screen bg-[var(--bg-base)]">
-      {children}
-    </div>
-  );
+  return <AuthFrame>{children}</AuthFrame>;
 }

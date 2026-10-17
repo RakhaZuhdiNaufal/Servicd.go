@@ -39,43 +39,52 @@ export async function GET(
     }
 
     const currentOdo = vehicle.last_odometer_km || 0;
-    const lastBooking = vehicle.bookings[0];
-    const lastServiceDate = lastBooking ? lastBooking.scheduled_at : null;
+    const completed = vehicle.bookings; // status selesai, terbaru dulu
+    const lastServiceDate = completed[0]?.scheduled_at ?? null;
+    const now = new Date();
 
-    // 1. Oli Mesin (Interval: tiap 5.000 km atau 6 bulan)
-    const odoSinceOil = currentOdo % 5000;
-    const oilRemainingKm = Math.max(0, 5000 - odoSinceOil);
-    const oilStatus = oilRemainingKm <= 1500 ? 'perlu_cek' : 'baik';
-    const oilStatusLabel = oilRemainingKm <= 1500 ? 'Perlu Cek' : 'Baik';
-    const oilDaysRemaining = Math.max(1, Math.round(oilRemainingKm / 80)); // estimasi rata-rata 80km/hari
+    // Hanya fakta dari riwayat servis ServiceGo. Tidak ada angka sensor (tegangan aki, tebal kampas)
+    // karena aplikasi tidak pernah mengukurnya. Interval waktu mengikuti panduan servis berkala di PLAN.md #3.
+    const ITEMS: Array<{ key: string; name: string; keywords: RegExp; interval_months: number }> = [
+      { key: 'oli_mesin', name: 'Oli mesin', keywords: /oli|servis berkala|tune.?up/i, interval_months: 6 },
+      { key: 'sistem_rem', name: 'Sistem rem', keywords: /rem|brake/i, interval_months: 12 },
+      { key: 'spooring_ban', name: 'Spooring & balancing', keywords: /spooring|balanc|ban/i, interval_months: 6 },
+      { key: 'ac', name: 'AC', keywords: /\bac\b|freon|kabin/i, interval_months: 12 }
+    ];
 
-    // 2. Sistem Rem (Interval: tiap 20.000 km)
-    const odoSinceBrake = currentOdo % 20000;
-    const brakeWearPercent = Math.max(15, Math.round(100 - (odoSinceBrake / 20000) * 100));
-    const brakeStatus = brakeWearPercent < 35 ? 'perlu_cek' : 'baik';
-    const brakeStatusLabel = brakeWearPercent < 35 ? 'Perlu Ganti' : 'Baik';
+    const monthsBetween = (from: Date, to: Date) =>
+      (to.getFullYear() - from.getFullYear()) * 12 + (to.getMonth() - from.getMonth()) - (to.getDate() < from.getDate() ? 1 : 0);
 
-    // 3. Aki & Kelistrikan
-    // Jika tidak ada keluhan atau belum lewat 2 tahun, kondisi normal
-    const batteryStatus = 'normal';
-    const batteryStatusLabel = 'Normal';
-
-    // 4. Spooring & Ban (Interval: tiap 10.000 km)
-    const odoSinceSpooring = currentOdo % 10000;
-    const spooringRemainingKm = Math.max(0, 10000 - odoSinceSpooring);
-    const spooringStatus = spooringRemainingKm <= 2000 ? 'perlu_cek' : 'rutin';
-    const spooringStatusLabel = spooringRemainingKm <= 2000 ? 'Perlu Cek' : 'Rutin';
-
-    // Hitung overall health score (0-100)
-    let score = 100;
-    if (oilStatus === 'perlu_cek') score -= 12;
-    if (brakeStatus === 'perlu_cek') score -= 18;
-    if (spooringStatus === 'perlu_cek') score -= 8;
-    score = Math.max(40, score);
-
-    let statusSummary = 'Kondisi Sangat Baik';
-    if (score < 75) statusSummary = 'Perlu Perhatian & Servis';
-    else if (score < 90) statusSummary = 'Kondisi Baik';
+    const indicators = ITEMS.map((item) => {
+      const last = completed.find((b) => b.booking_services.some((bs) => item.keywords.test(bs.service.name)));
+      if (!last) {
+        return {
+          key: item.key,
+          name: item.name,
+          status: 'belum_ada_data' as const,
+          status_label: 'Belum ada data',
+          last_done_at: null,
+          months_since: null,
+          interval_months: item.interval_months,
+          message: `Belum ada catatan ${item.name.toLowerCase()} di ServiceGo untuk kendaraan ini.`
+        };
+      }
+      const doneAt = new Date(last.scheduled_at);
+      const months = Math.max(0, monthsBetween(doneAt, now));
+      const due = months >= item.interval_months;
+      return {
+        key: item.key,
+        name: item.name,
+        status: due ? ('perlu_cek' as const) : ('baik' as const),
+        status_label: due ? 'Waktunya dicek' : 'Masih dalam jadwal',
+        last_done_at: doneAt.toISOString(),
+        months_since: months,
+        interval_months: item.interval_months,
+        message: due
+          ? `Terakhir dikerjakan ${months} bulan lalu. Jadwal anjuran tiap ${item.interval_months} bulan.`
+          : `Terakhir dikerjakan ${months === 0 ? 'bulan ini' : `${months} bulan lalu`}. Jadwal anjuran tiap ${item.interval_months} bulan.`
+      };
+    });
 
     return apiSuccess({
       vehicle_id: vehicle.id,
@@ -85,48 +94,9 @@ export async function GET(
       vehicle_type: vehicle.vehicle_type,
       current_odometer_km: currentOdo,
       last_service_date: lastServiceDate,
-      total_services_completed: vehicle.bookings.length,
-      health_score: score,
-      status_summary: statusSummary,
-      indicators: [
-        {
-          key: 'oli_mesin',
-          name: 'Oli Mesin',
-          status: oilStatus,
-          status_label: oilStatusLabel,
-          remaining_km: oilRemainingKm,
-          estimated_days: oilDaysRemaining,
-          message:
-            oilRemainingKm <= 1500
-              ? `Disarankan ganti dalam ${oilRemainingKm.toLocaleString('id-ID')} km lagi (~${oilDaysRemaining} hari).`
-              : `Oli mesin masih dalam kondisi optimal untuk ${oilRemainingKm.toLocaleString('id-ID')} km ke depan.`
-        },
-        {
-          key: 'sistem_rem',
-          name: 'Sistem Rem',
-          status: brakeStatus,
-          status_label: brakeStatusLabel,
-          pad_thickness_percent: brakeWearPercent,
-          message: `Ketebalan kampas rem ~${brakeWearPercent}%. Minyak rem jernih.`
-        },
-        {
-          key: 'aki_kelistrikan',
-          name: 'Aki & Kelistrikan',
-          status: batteryStatus,
-          status_label: batteryStatusLabel,
-          voltage: '12.6V',
-          message: 'Tegangan aki 12.6V. Alternator mengisi optimal.'
-        },
-        {
-          key: 'spooring_ban',
-          name: 'Spooring & Ban',
-          status: spooringStatus,
-          status_label: spooringStatusLabel,
-          remaining_km: spooringRemainingKm,
-          message: `Jadwal rotasi & balancing setiap 10.000 km (${spooringRemainingKm.toLocaleString('id-ID')} km lagi).`
-        }
-      ]
-    }, 'Analisis kesehatan kendaraan berhasil dihitung');
+      total_services_completed: completed.length,
+      indicators
+    }, 'Ringkasan perawatan kendaraan berhasil diambil');
   } catch (error: any) {
     return apiError(error.message || 'Gagal menghitung kesehatan kendaraan', 500);
   }

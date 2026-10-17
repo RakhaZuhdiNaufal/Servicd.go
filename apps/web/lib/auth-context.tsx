@@ -41,7 +41,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setProfileId(json.data.id);
       }
     } catch {
-      // non-fatal — middleware will still try to look up profile
+      // non-fatal: middleware will still try to look up profile
     }
   }
 
@@ -63,12 +63,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const currentSession = data.session;
           setSession(currentSession);
           if (currentSession) {
-            const r = (currentSession.user.app_metadata?.role ??
-              currentSession.user.user_metadata?.role ??
-              null) as 'admin' | 'customer' | null;
+            // Hanya app_metadata (diisi server); user_metadata bisa diubah pengguna sendiri.
+            const r = (currentSession.user.app_metadata?.role ?? null) as 'admin' | 'customer' | null;
             setRole(r);
-            setProfileId(currentSession.user.user_metadata?.profile_id ?? null);
-            if (!r || !currentSession.user.user_metadata?.profile_id) {
+            setProfileId(currentSession.user.app_metadata?.profile_id ?? null);
+            if (!r || !currentSession.user.app_metadata?.profile_id) {
               syncProfile(currentSession.access_token);
             }
           }
@@ -96,12 +95,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!mounted) return;
       setSession(newSession);
       if (newSession) {
-        const r = (newSession.user.app_metadata?.role ??
-          newSession.user.user_metadata?.role ??
-          null) as 'admin' | 'customer' | null;
+        const r = (newSession.user.app_metadata?.role ?? null) as 'admin' | 'customer' | null;
         setRole(r);
-        setProfileId(newSession.user.user_metadata?.profile_id ?? null);
-        if (!newSession.user.user_metadata?.profile_id) {
+        setProfileId(newSession.user.app_metadata?.profile_id ?? null);
+        if (!newSession.user.app_metadata?.profile_id) {
           syncProfile(newSession.access_token);
         }
       } else {

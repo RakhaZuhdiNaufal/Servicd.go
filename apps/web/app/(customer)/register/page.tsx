@@ -2,30 +2,82 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useForm } from 'react-hook-form';
+import { useForm, type FieldError } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { supabase } from '@/lib/supabase-client';
 import { toast } from 'sonner';
 import { useState } from 'react';
-import { Eye, EyeOff } from 'lucide-react';
+import { AlertTriangle, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { clsx } from 'clsx';
+import { supabase } from '@/lib/supabase-client';
 
 const schema = z.object({
   full_name: z.string().min(2, 'Nama minimal 2 karakter'),
-  phone: z.string().min(8, 'No. HP tidak valid'),
-  email: z.string().email('Email tidak valid'),
+  phone: z.string().min(8, 'No. HP minimal 8 digit'),
+  email: z.string().email('Format email belum benar'),
   password: z.string().min(6, 'Password minimal 6 karakter')
 });
 type Form = z.infer<typeof schema>;
 
+const inputClass =
+  'h-12 w-full rounded-ctl border bg-white px-4 text-base text-slate-900 placeholder:text-slate-500 transition-colors dark:bg-slate-900 dark:text-white dark:placeholder:text-slate-500';
+
+function borderFor(error?: FieldError) {
+  return error ? 'border-red-500 dark:border-red-500' : 'border-slate-300 dark:border-slate-700';
+}
+
+function FieldMessage({ id, error, hint }: { id: string; error?: FieldError; hint?: string }) {
+  if (error) {
+    return (
+      <p id={id} className="text-sm text-red-700 dark:text-red-300">
+        {error.message}
+      </p>
+    );
+  }
+  if (hint) {
+    return (
+      <p id={id} className="text-[13px] text-slate-600 dark:text-slate-400">
+        {hint}
+      </p>
+    );
+  }
+  return null;
+}
+
+const TEXT_FIELDS: Array<{
+  id: 'full_name' | 'phone' | 'email';
+  label: string;
+  type: string;
+  placeholder: string;
+  autoComplete: string;
+  inputMode?: 'text' | 'tel' | 'email';
+  hint?: string;
+}> = [
+  { id: 'full_name', label: 'Nama lengkap', type: 'text', placeholder: 'Nama sesuai KTP', autoComplete: 'name' },
+  {
+    id: 'phone',
+    label: 'No. HP (WhatsApp)',
+    type: 'tel',
+    placeholder: '08xxxxxxxxxx',
+    autoComplete: 'tel',
+    inputMode: 'tel',
+    hint: 'Dipakai bengkel untuk mengabari status servis.'
+  },
+  { id: 'email', label: 'Email', type: 'email', placeholder: 'nama@email.com', autoComplete: 'email', inputMode: 'email' }
+];
+
 export default function RegisterPage() {
   const router = useRouter();
   const [showPw, setShowPw] = useState(false);
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<Form>({
-    resolver: zodResolver(schema)
-  });
+  const [formError, setFormError] = useState<string | null>(null);
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting }
+  } = useForm<Form>({ resolver: zodResolver(schema) });
 
   async function onSubmit({ email, password, full_name, phone }: Form) {
+    setFormError(null);
     try {
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -33,16 +85,13 @@ export default function RegisterPage() {
         options: { data: { full_name, phone } }
       });
       if (error) {
-        if (
-          error.status === 429 ||
-          error.message?.toLowerCase().includes('rate limit') ||
-          error.message?.toLowerCase().includes('too many')
-        ) {
-          toast.error(
-            'Terlalu banyak percobaan pendaftaran (Rate Limit Supabase). Harap tunggu 1-2 menit atau matikan opsi "Confirm email" di Supabase Dashboard.'
-          );
+        const msg = error.message?.toLowerCase() ?? '';
+        if (error.status === 429 || msg.includes('rate limit') || msg.includes('too many')) {
+          setFormError('Terlalu banyak percobaan daftar. Tunggu 1 sampai 2 menit, lalu coba lagi.');
+        } else if (msg.includes('already registered') || msg.includes('already exists')) {
+          setFormError('Email ini sudah terdaftar. Silakan masuk dengan email tersebut.');
         } else {
-          toast.error(error.message);
+          setFormError(error.message);
         }
         return;
       }
@@ -53,86 +102,115 @@ export default function RegisterPage() {
           headers: {
             Authorization: `Bearer ${data.session.access_token}`,
             'Content-Type': 'application/json'
-          }
+          },
+          body: JSON.stringify({ full_name, phone })
         }).catch(() => {});
-        toast.success('Akun berhasil dibuat! Selamat datang di ServiceGo.');
+        toast.success('Akun berhasil dibuat. Selamat datang di ServiceGo.');
         router.replace('/');
       } else {
-        toast.success('Pendaftaran berhasil! Silakan masuk dengan akun baru Anda.');
+        toast.success('Akun berhasil dibuat. Kalau ada email konfirmasi, buka tautannya dulu, lalu masuk.');
         router.replace('/login');
       }
     } catch (err: any) {
       console.error('Register error:', err);
-      toast.error(err.message || 'Gagal menghubungi server autentikasi. Silakan coba lagi.');
+      setFormError(err?.message || 'Server belum bisa dihubungi. Coba lagi sebentar lagi.');
     }
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[80vh] px-4">
-      <div className="w-full max-w-sm space-y-6">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Buat Akun</h1>
-          <p className="text-sm text-slate-500 mt-1">Daftar gratis, booking kapan saja</p>
-        </div>
+    <div className="space-y-8">
+      <div className="space-y-3">
+        <h1 className="text-[30px] sm:text-[40px] font-extrabold leading-[1.1] tracking-[-0.015em] text-slate-900 dark:text-white">Buat akun ServiceGo</h1>
+        <p className="text-[17px] leading-relaxed text-slate-600 dark:text-slate-400">
+          Satu akun untuk booking servis, menyimpan data kendaraan, dan melihat riwayat.
+        </p>
+      </div>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 p-6">
-          {[
-            { id: 'full_name', label: 'Nama Lengkap', type: 'text', placeholder: 'Budi Santoso', autocomplete: 'name' },
-            { id: 'phone', label: 'No. HP', type: 'tel', placeholder: '0812xxxxxxx', autocomplete: 'tel' },
-            { id: 'email', label: 'Email', type: 'email', placeholder: 'email@kamu.com', autocomplete: 'email' }
-          ].map(({ id, label, type, placeholder, autocomplete }) => (
-            <div key={id} className="space-y-1">
-              <label htmlFor={id} className="text-sm font-medium text-slate-700 dark:text-slate-300">{label}</label>
+      <form
+        onSubmit={handleSubmit(onSubmit)}
+        noValidate
+        className="space-y-5"
+      >
+        {formError && (
+          <div
+            role="alert"
+            className="flex gap-2 rounded-ctl border border-red-200 bg-red-50 px-3.5 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200"
+          >
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+            <p>{formError}</p>
+          </div>
+        )}
+
+        {TEXT_FIELDS.map(({ id, label, type, placeholder, autoComplete, inputMode, hint }) => {
+          const error = errors[id];
+          const describedBy = error || hint ? `${id}-msg` : undefined;
+          return (
+            <div key={id} className="space-y-1.5">
+              <label htmlFor={id} className="block text-[15px] font-semibold text-slate-900 dark:text-slate-100">
+                {label}
+              </label>
               <input
                 id={id}
                 type={type}
-                autoComplete={autocomplete}
-                {...register(id as keyof Form)}
+                autoComplete={autoComplete}
+                inputMode={inputMode}
                 placeholder={placeholder}
-                className="w-full rounded-sm border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary-500"
+                aria-invalid={error ? true : undefined}
+                aria-describedby={describedBy}
+                {...register(id)}
+                className={clsx(inputClass, borderFor(error))}
               />
-              {errors[id as keyof typeof errors] && (
-                <p className="text-xs text-red-500">{errors[id as keyof typeof errors]?.message as string}</p>
-              )}
+              <FieldMessage id={`${id}-msg`} error={error} hint={hint} />
             </div>
-          ))}
+          );
+        })}
 
-          <div className="space-y-1">
-            <label htmlFor="password" className="text-sm font-medium text-slate-700 dark:text-slate-300">Password</label>
-            <div className="relative">
-              <input
-                id="password"
-                type={showPw ? 'text' : 'password'}
-                autoComplete="new-password"
-                {...register('password')}
-                placeholder="min. 6 karakter"
-                className="w-full rounded-sm border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2.5 pr-10 text-sm focus:outline-none focus:ring-1 focus:ring-primary-500"
-              />
-              <button type="button" onClick={() => setShowPw((v) => !v)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                aria-label={showPw ? 'Sembunyikan password' : 'Tampilkan password'}>
-                {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
-            {errors.password && <p className="text-xs text-red-500">{errors.password.message}</p>}
+        <div className="space-y-1.5">
+          <label htmlFor="password" className="block text-[15px] font-semibold text-slate-900 dark:text-slate-100">
+            Password
+          </label>
+          <div className="relative">
+            <input
+              id="password"
+              type={showPw ? 'text' : 'password'}
+              autoComplete="new-password"
+              aria-invalid={errors.password ? true : undefined}
+              aria-describedby="password-msg"
+              {...register('password')}
+              className={clsx(inputClass, 'pr-12', borderFor(errors.password))}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPw((v) => !v)}
+              aria-label={showPw ? 'Sembunyikan password' : 'Tampilkan password'}
+              aria-pressed={showPw}
+              className="absolute inset-y-0 right-0 inline-flex w-12 items-center justify-center rounded-r-ctl text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors"
+            >
+              {showPw ? <EyeOff className="h-4 w-4" aria-hidden /> : <Eye className="h-4 w-4" aria-hidden />}
+            </button>
           </div>
+          <FieldMessage id="password-msg" error={errors.password} hint="Minimal 6 karakter." />
+        </div>
 
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full rounded-md bg-accent-500 hover:bg-accent-600 text-white font-semibold py-2.5 text-sm transition disabled:opacity-50"
-          >
-            {isSubmitting ? 'Mendaftar…' : 'Daftar Sekarang'}
-          </button>
-        </form>
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-ctl bg-primary-600 text-[17px] font-bold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-70 transition-colors"
+        >
+          {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
+          {isSubmitting ? 'Sedang mendaftar...' : 'Buat akun'}
+        </button>
+      </form>
 
-        <p className="text-center text-sm text-slate-500">
-          Sudah punya akun?{' '}
-          <Link href="/login" className="text-primary-600 font-semibold hover:underline">
-            Masuk
-          </Link>
-        </p>
-      </div>
+      <p className="border-t border-slate-200 pt-6 text-[15px] text-slate-600 dark:border-slate-800 dark:text-slate-400">
+        Sudah punya akun?{' '}
+        <Link
+          href="/login"
+          className="inline-flex min-h-[44px] items-center font-semibold text-primary-700 hover:underline dark:text-primary-100"
+        >
+          Masuk di sini
+        </Link>
+      </p>
     </div>
   );
 }

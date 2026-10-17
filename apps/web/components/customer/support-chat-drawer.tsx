@@ -1,363 +1,372 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import {
-  X,
-  Send,
-  Headphones,
-  Sparkles,
-  CheckCircle2,
-  Clock,
-  ShieldCheck,
-  RotateCcw
-} from 'lucide-react';
+import Link from 'next/link';
+import { X, Send, Headphones, ChevronDown, Loader2, LogIn, RotateCw } from 'lucide-react';
+import { clsx } from 'clsx';
+import { formatDateWIB, formatTimeWIB, wibDateKey } from '@/lib/format';
+import { MAX_MESSAGE_LENGTH, type CustomerSupportChat } from '@/lib/support-chat';
 
-interface ChatMessage {
-  id: string;
-  sender: 'user' | 'bot' | 'cs';
-  text: string;
-  timestamp: string;
-}
-
-const TEMPLATE_FAQS = [
+// Jawaban cepat: hanya berisi hal yang benar-benar ada di aplikasi. Tidak disimpan ke server.
+const QUICK_ANSWERS = [
   {
-    id: 'faq-1',
-    question: 'Berapa lama estimasi pengerjaan servis berkala?',
+    id: 'faq-booking',
+    question: 'Bagaimana cara booking servis?',
     answer:
-      'Servis berkala (Tune Up, Ganti Oli, dan Cek 20 Titik) biasanya membutuhkan waktu 45–90 menit tergantung antrean bengkel. Anda bisa memantau status pengerjaan secara real-time di halaman Riwayat Servis.'
+      'Tekan tombol Booking servis, lalu isi 4 langkah: kendaraan, layanan, bengkel, dan jadwal. Untuk konfirmasi booking kamu perlu masuk ke akun.'
   },
   {
-    id: 'faq-2',
-    question: 'Apakah ada garansi setelah servis selesai?',
+    id: 'faq-jam',
+    question: 'Jam berapa saja bisa datang?',
     answer:
-      'Ya, tentu! ServiceGo memberikan Garansi Pengerjaan & Suku Cadang hingga 1.000 KM atau 14 hari kerja di seluruh bengkel rekanan resmi kami. Jika keluhan masih berlanjut, pengerjaan ulang bebas biaya jasa.'
+      'Slot kedatangan tersedia per jam (WIB): 08.00 sampai 11.00 dan 13.00 sampai 16.00. Slot yang sudah penuh tidak bisa dipilih di form booking.'
   },
   {
-    id: 'faq-3',
-    question: 'Bagaimana cara pakai voucher promo SERVISHEMAT20?',
+    id: 'faq-status',
+    question: 'Di mana cek status servis?',
     answer:
-      'Kode voucher SERVISHEMAT20 memberikan diskon 20% untuk booking pertama Anda. Cukup masukkan kode ini di kolom "Kode Promo" saat mengisi formulir booking baru.'
+      'Buka menu Riwayat, lalu pilih booking kamu. Statusnya: Menunggu Konfirmasi, Sedang Dikerjakan, Selesai / Siap Diambil, atau Dibatalkan.'
   },
   {
-    id: 'faq-4',
-    question: 'Apakah bisa booking servis untuk hari ini?',
+    id: 'faq-promo',
+    question: 'Bagaimana pakai kode promo?',
     answer:
-      'Bisa! Anda dapat memilih jadwal servis untuk hari ini (selama slot bengkel masih tersedia) atau menjadwalkannya hingga 14 hari ke depan. Jam operasional bengkel rata-rata 08:00 – 16:30 WIB.'
+      'Isi kode promo di ringkasan booking, lalu tekan Pakai. Diskon langsung dipotong dari estimasi biaya layanan yang kamu pilih.'
   },
   {
-    id: 'faq-5',
-    question: 'Metode pembayaran apa saja yang diterima?',
+    id: 'faq-ubah',
+    question: 'Bisa ubah atau batalkan jadwal?',
     answer:
-      'Kami mendukung pembayaran tunai langsung di kasir bengkel (Cash on Service), Transfer Bank / Virtual Account (BCA, Mandiri, BRI, BNI), serta QRIS dan E-Wallet (GoPay, OVO, ShopeePay).'
+      'Perubahan jadwal belum bisa dilakukan sendiri di aplikasi. Tulis permintaanmu ke CS lewat chat di bawah, atau telepon bengkel.'
   }
 ];
+
+const QUICK_REPLIES_CUSTOMER = ['Mau ubah jadwal booking', 'Mau tanya estimasi biaya', 'Status servis saya bagaimana?'];
 
 interface SupportChatDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   userEmail?: string;
+  /** null = tamu (belum login). */
+  chat: CustomerSupportChat | null;
+  loginHref: string;
 }
 
-export function SupportChatDrawer({ isOpen, onClose, userEmail }: SupportChatDrawerProps) {
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: 'init-1',
-      sender: 'bot',
-      text: 'Halo Kak! 👋 Selamat datang di Layanan Bantuan & Live Chat ServiceGo. Ada yang bisa kami bantu seputar servis atau kendaraan Anda hari ini?',
-      timestamp: 'Baru saja'
-    }
-  ]);
+export function SupportChatDrawer({ isOpen, onClose, userEmail, chat, loginHref }: SupportChatDrawerProps) {
   const [inputValue, setInputValue] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [faqOpen, setFaqOpen] = useState(false);
+  const [activeFaq, setActiveFaq] = useState<string | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const logRef = useRef<HTMLDivElement>(null);
+  const closeBtnRef = useRef<HTMLButtonElement>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
 
-  // Auto scroll to bottom
+  const isGuest = !chat;
+  const messages = chat?.messages ?? [];
+
+  // Tamu langsung melihat jawaban cepat; yang sudah login fokus ke chat.
+  useEffect(() => {
+    if (isOpen) setFaqOpen(isGuest || messages.length === 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, isGuest]);
+
+  // Gulir ke pesan terbaru (tanpa animasi).
+  useEffect(() => {
+    if (isOpen && logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
+  }, [messages.length, isOpen]);
+
+  // Balasan CS ditandai dibaca selama drawer terbuka.
+  const unread = chat?.unreadFromAdmin ?? 0;
+  const markRead = chat?.markRead;
+  useEffect(() => {
+    if (isOpen && unread > 0 && markRead) markRead();
+  }, [isOpen, unread, markRead]);
+
+  // Saat dibuka: simpan elemen pemicu, fokus ke tombol tutup. Saat ditutup: kembalikan fokus.
   useEffect(() => {
     if (isOpen) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [messages, isTyping, isOpen]);
-
-  // Focus input when opened
-  useEffect(() => {
-    if (isOpen) {
-      setTimeout(() => {
-        inputRef.current?.focus();
-      }, 300);
+      returnFocusRef.current = document.activeElement as HTMLElement | null;
+      closeBtnRef.current?.focus();
+    } else if (returnFocusRef.current) {
+      returnFocusRef.current.focus();
+      returnFocusRef.current = null;
     }
   }, [isOpen]);
 
-  // Close on Escape
+  // Escape menutup, Tab tetap di dalam dialog.
   useEffect(() => {
+    if (!isOpen) return;
     function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape' && isOpen) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
         onClose();
+        return;
+      }
+      if (e.key !== 'Tab' || !panelRef.current) return;
+      const focusables = panelRef.current.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusables.length === 0) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
       }
     }
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  // Prevent body scroll when drawer open
+  // Kunci scroll halaman saat drawer terbuka.
   useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
+    document.body.style.overflow = isOpen ? 'hidden' : '';
     return () => {
       document.body.style.overflow = '';
     };
   }, [isOpen]);
 
-  function getFormattedTime() {
-    const now = new Date();
-    return now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-  }
-
-  // Handle template click
-  function handleSelectFAQ(faq: typeof TEMPLATE_FAQS[number]) {
-    if (isTyping) return;
-
-    const userMsg: ChatMessage = {
-      id: 'user-' + Date.now(),
-      sender: 'user',
-      text: faq.question,
-      timestamp: getFormattedTime()
-    };
-
-    setMessages((prev) => [...prev, userMsg]);
-    setIsTyping(true);
-
-    setTimeout(() => {
-      setIsTyping(false);
-      const botMsg: ChatMessage = {
-        id: 'bot-' + Date.now(),
-        sender: 'bot',
-        text: faq.answer,
-        timestamp: getFormattedTime()
-      };
-      setMessages((prev) => [...prev, botMsg]);
-    }, 1100);
-  }
-
-  // Handle custom user submit
-  function handleSendMessage(e: React.FormEvent) {
-    e.preventDefault();
-    const text = inputValue.trim();
-    if (!text || isTyping) return;
-
-    const userMsg: ChatMessage = {
-      id: 'user-' + Date.now(),
-      sender: 'user',
-      text,
-      timestamp: getFormattedTime()
-    };
-
-    setMessages((prev) => [...prev, userMsg]);
-    setInputValue('');
-    setIsTyping(true);
-
-    // Simulated CS escalation response as agreed in plan
-    setTimeout(() => {
-      setIsTyping(false);
-      const csReply: ChatMessage = {
-        id: 'cs-' + Date.now(),
-        sender: 'cs',
-        text: 'Baik Kak, pesan Anda sudah kami teruskan ke tim Customer Support ServiceGo. Tim CS kami sedang meninjau keluhan Anda dan akan segera membalas di sini dalam beberapa menit. Harap tidak meninggalkan website ini ya 🙏',
-        timestamp: getFormattedTime()
-      };
-      setMessages((prev) => [...prev, csReply]);
-    }, 1200);
-  }
-
-  function handleResetChat() {
-    setMessages([
-      {
-        id: 'init-' + Date.now(),
-        sender: 'bot',
-        text: 'Halo Kak! 👋 Percakapan telah diatur ulang. Silakan pilih pertanyaan atau tulis keluhan servis Anda kembali.',
-        timestamp: getFormattedTime()
-      }
-    ]);
+  async function handleSend(e?: React.FormEvent) {
+    e?.preventDefault();
+    if (!chat || !inputValue.trim() || chat.sending) return;
+    const ok = await chat.send(inputValue);
+    if (ok) setInputValue('');
   }
 
   if (!isOpen) return null;
 
+  const faq = QUICK_ANSWERS.find((f) => f.id === activeFaq);
+  const resolved = chat?.conversation?.status === 'resolved';
+
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
-      {/* Backdrop with Blur */}
-      <div
-        onClick={onClose}
-        aria-hidden="true"
-        className="fixed inset-0 bg-slate-950/40 backdrop-blur-md transition-opacity duration-300"
-      />
+      <div onClick={onClose} aria-hidden="true" className="fixed inset-0 bg-slate-950/50" />
 
-      {/* Slide-over Drawer Panel */}
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="support-drawer-title"
-        className="relative z-10 w-full sm:max-w-md md:max-w-lg bg-white dark:bg-slate-900 shadow-2xl flex flex-col h-full border-l border-slate-200 dark:border-slate-800 animate-in slide-in-from-right duration-300 ease-out"
+        aria-describedby="support-drawer-desc"
+        className="relative z-10 flex h-full w-full flex-col border-l border-slate-200 bg-white shadow-xl dark:border-slate-800 dark:bg-slate-900 sm:max-w-md"
       >
         {/* Header */}
-        <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm flex items-center justify-between gap-3 shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="relative">
-              <div className="h-10 w-10 rounded-full bg-gradient-to-tr from-primary-600 to-blue-500 text-white flex items-center justify-center shadow-sm">
-                <Headphones className="h-5 w-5" />
-              </div>
-              <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-emerald-500 border-2 border-white dark:border-slate-900 shadow-xs" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 id="support-drawer-title" className="font-bold text-sm sm:text-base text-slate-900 dark:text-white">
-                  Customer Support ServiceGo
-                </h2>
-                <span className="px-2 py-0.2 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400">
-                  Online
-                </span>
-              </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Respon Cepat · Bantuan Booking & Teknis
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 p-4 dark:border-slate-800">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-ctl bg-primary-50 text-primary-700 dark:bg-primary-900/50 dark:text-primary-100">
+              <Headphones className="h-5 w-5" aria-hidden />
+            </span>
+            <div className="min-w-0">
+              <h2 id="support-drawer-title" className="font-semibold text-slate-900 dark:text-white">
+                Bantuan ServiceGo
+              </h2>
+              <p id="support-drawer-desc" className="text-sm text-slate-600 dark:text-slate-400">
+                {isGuest ? 'Jawaban cepat. Masuk untuk chat dengan CS.' : 'Chat dengan tim CS. Balasan masuk di sini.'}
               </p>
             </div>
           </div>
-
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={handleResetChat}
-              title="Mulai Ulang Percakapan"
-              className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
-            >
-              <RotateCcw className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              title="Tutup Bantuan"
-              className="p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          </div>
+          <button
+            ref={closeBtnRef}
+            type="button"
+            onClick={onClose}
+            aria-label="Tutup bantuan"
+            title="Tutup (Esc)"
+            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-ctl text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white transition-colors"
+          >
+            <X className="h-5 w-5" aria-hidden />
+          </button>
         </div>
 
-        {/* Quick FAQ Suggestion Chips Bar */}
-        <div className="p-3 bg-slate-50/80 dark:bg-slate-950/40 border-b border-slate-100 dark:border-slate-800 shrink-0">
-          <div className="flex items-center gap-1.5 mb-2 text-[11px] font-bold text-slate-500 dark:text-slate-400">
-            <Sparkles className="h-3.5 w-3.5 text-primary-500" />
-            <span>Pertanyaan Populer:</span>
-          </div>
-          <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
-            {TEMPLATE_FAQS.map((faq) => (
-              <button
-                key={faq.id}
-                type="button"
-                disabled={isTyping}
-                onClick={() => handleSelectFAQ(faq)}
-                className="shrink-0 text-left px-3 py-1.5 rounded-full text-xs font-medium bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200/90 dark:border-slate-700/80 hover:border-primary-500 dark:hover:border-primary-500 hover:text-primary-600 dark:hover:text-primary-400 transition shadow-2xs active:scale-95 disabled:opacity-50"
-              >
-                {faq.question}
-              </button>
-            ))}
-          </div>
+        {/* Jawaban cepat (lokal, tidak dikirim ke CS) */}
+        <div className="shrink-0 border-b border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-950">
+          <button
+            type="button"
+            onClick={() => setFaqOpen((v) => !v)}
+            aria-expanded={faqOpen}
+            aria-controls="support-faq"
+            className="flex min-h-[48px] w-full items-center justify-between gap-2 px-4 text-left text-sm font-semibold text-slate-900 hover:bg-slate-100 dark:text-white dark:hover:bg-slate-900 transition-colors"
+          >
+            Jawaban cepat
+            <ChevronDown className={clsx('h-4 w-4 shrink-0', faqOpen && 'rotate-180')} aria-hidden />
+          </button>
+          {faqOpen && (
+            <div id="support-faq" className="space-y-3 px-4 pb-4">
+              <ul className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0">
+                {QUICK_ANSWERS.map((f) => (
+                  <li key={f.id} className="shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setActiveFaq((cur) => (cur === f.id ? null : f.id))}
+                      aria-pressed={activeFaq === f.id}
+                      className={clsx(
+                        'min-h-[44px] whitespace-nowrap rounded-chip border px-3 py-2 text-left text-sm font-medium transition-colors sm:whitespace-normal',
+                        activeFaq === f.id
+                          ? 'border-primary-600 bg-primary-50 text-primary-800 dark:border-primary-500 dark:bg-primary-900/40 dark:text-primary-100'
+                          : 'border-slate-300 bg-white text-slate-800 hover:border-primary-600 hover:text-primary-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-primary-500 dark:hover:text-primary-100'
+                      )}
+                    >
+                      {f.question}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              {faq && (
+                <p className="rounded-ctl border border-slate-200 bg-white p-3 text-sm leading-relaxed text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200" aria-live="polite">
+                  {faq.answer}
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
-        {/* Message Feed Area */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
-          {/* Welcome Info Box */}
-          <div className="p-3.5 rounded-2xl bg-primary-50/70 dark:bg-primary-950/30 border border-primary-100 dark:border-primary-900/50 flex items-start gap-3 text-xs text-primary-950 dark:text-primary-200">
-            <ShieldCheck className="h-4 w-4 text-primary-600 mt-0.5 shrink-0" />
-            <div className="space-y-0.5">
-              <p className="font-semibold text-primary-900 dark:text-primary-100">
-                Pusat Bantuan Resmi ServiceGo
+        {/* Percakapan dengan CS */}
+        <div ref={logRef} className="flex-1 overflow-y-auto p-4" role="log" aria-live="polite" aria-label="Percakapan dengan CS">
+          {isGuest && (
+            <div className="space-y-3 rounded-2xl border border-dashed border-slate-300 p-5 text-center dark:border-slate-700">
+              <p className="font-semibold text-slate-900 dark:text-white">Chat dengan CS butuh akun</p>
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                Supaya CS bisa melihat booking dan kendaraanmu, masuk dulu. Riwayat chat tersimpan di akunmu.
               </p>
-              <p className="text-[11px] text-primary-700/80 dark:text-primary-300/80 leading-relaxed">
-                Punya pertanyaan garansi, biaya estimasi, atau perubahan jadwal booking? Tanyakan di bawah ini.
-              </p>
-            </div>
-          </div>
-
-          {/* Messages List */}
-          {messages.map((msg) => {
-            const isUser = msg.sender === 'user';
-            return (
-              <div
-                key={msg.id}
-                className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} space-y-1`}
+              <Link
+                href={loginHref}
+                onClick={onClose}
+                className="inline-flex min-h-[44px] items-center gap-2 rounded-ctl bg-primary-600 px-4 text-sm font-semibold text-white hover:bg-primary-700 transition-colors"
               >
-                <div
-                  className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-xs sm:text-sm leading-relaxed shadow-2xs ${
-                    isUser
-                      ? 'bg-primary-600 text-white rounded-tr-xs'
-                      : msg.sender === 'cs'
-                      ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-950 dark:text-amber-200 border border-amber-200 dark:border-amber-900/50 rounded-tl-xs'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200/80 dark:border-slate-700/80 rounded-tl-xs'
-                  }`}
-                >
-                  {msg.sender === 'cs' && (
-                    <div className="flex items-center gap-1.5 font-bold text-[11px] text-amber-700 dark:text-amber-400 mb-1">
-                      <Headphones className="h-3 w-3" />
-                      <span>Agen Support</span>
-                    </div>
-                  )}
-                  <p>{msg.text}</p>
-                </div>
-                <div className="flex items-center gap-1 text-[10px] text-slate-400 px-1">
-                  <span>{msg.timestamp}</span>
-                  {isUser && <CheckCircle2 className="h-3 w-3 text-primary-500" />}
-                </div>
-              </div>
-            );
-          })}
-
-          {/* Animated Typing Indicator */}
-          {isTyping && (
-            <div className="flex items-start gap-2">
-              <div className="h-7 w-7 rounded-full bg-primary-100 dark:bg-primary-950/80 text-primary-600 flex items-center justify-center shrink-0 text-xs">
-                <Headphones className="h-3.5 w-3.5" />
-              </div>
-              <div className="bg-slate-100 dark:bg-slate-800 rounded-2xl rounded-tl-xs px-4 py-3 flex items-center gap-1.5 border border-slate-200/80 dark:border-slate-700/80 shadow-2xs">
-                <span className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:-0.3s]" />
-                <span className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:-0.15s]" />
-                <span className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce" />
-                <span className="text-[11px] text-slate-400 ml-1.5">CS sedang mengetik...</span>
-              </div>
+                <LogIn className="h-4 w-4" aria-hidden />
+                Masuk untuk chat
+              </Link>
             </div>
           )}
 
-          <div ref={messagesEndRef} />
+          {chat && chat.loading && messages.length === 0 && (
+            <div className="space-y-3" aria-busy>
+              <div className="h-12 w-2/3 rounded-2xl shimmer" />
+              <div className="ml-auto h-10 w-1/2 rounded-2xl shimmer" />
+            </div>
+          )}
+
+          {chat && chat.error && messages.length === 0 && !chat.loading && (
+            <div role="alert" className="space-y-2 rounded-ctl border border-red-200 bg-red-50 p-4 text-sm dark:border-red-900 dark:bg-red-950/40">
+              <p className="text-red-800 dark:text-red-200">{chat.error}</p>
+              <button
+                type="button"
+                onClick={() => chat.reload()}
+                className="inline-flex min-h-[40px] items-center gap-1.5 font-semibold text-red-800 hover:underline dark:text-red-200"
+              >
+                <RotateCw className="h-4 w-4" aria-hidden />
+                Coba lagi
+              </button>
+            </div>
+          )}
+
+          {chat && !chat.loading && !chat.error && messages.length === 0 && (
+            <div className="space-y-3 py-6 text-center">
+              <p className="font-semibold text-slate-900 dark:text-white">Belum ada pesan</p>
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                Tulis pertanyaanmu di bawah. Tim CS akan membalas di sini, dan kamu bisa menutup drawer ini sambil menunggu.
+              </p>
+              <ul className="flex flex-wrap justify-center gap-2 pt-1">
+                {QUICK_REPLIES_CUSTOMER.map((q) => (
+                  <li key={q}>
+                    <button
+                      type="button"
+                      onClick={() => setInputValue(q)}
+                      className="min-h-[40px] rounded-chip border border-slate-300 px-3 text-sm text-slate-700 hover:border-primary-600 hover:text-primary-700 dark:border-slate-700 dark:text-slate-300 dark:hover:border-primary-500 dark:hover:text-primary-100 transition-colors"
+                    >
+                      {q}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {messages.length > 0 && (
+            <ol className="space-y-3">
+              {messages.map((m, i) => {
+                const mine = m.sender_type === 'customer';
+                const prev = messages[i - 1];
+                const newDay = !prev || wibDateKey(prev.created_at) !== wibDateKey(m.created_at);
+                return (
+                  <li key={m.id}>
+                    {newDay && (
+                      <p className="mb-3 text-center text-xs text-slate-500 dark:text-slate-400">
+                        {formatDateWIB(m.created_at, { weekday: 'long', day: 'numeric', month: 'long' })}
+                      </p>
+                    )}
+                    <div className={clsx('flex flex-col gap-1', mine ? 'items-end' : 'items-start')}>
+                      <div
+                        className={clsx(
+                          'max-w-[85%] whitespace-pre-wrap break-words rounded-2xl px-4 py-2.5 text-sm leading-relaxed',
+                          mine
+                            ? 'bg-primary-600 text-white'
+                            : 'border border-slate-200 bg-slate-100 text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100'
+                        )}
+                      >
+                        {!mine && <span className="sr-only">CS: </span>}
+                        {m.message}
+                      </div>
+                      <span className="px-1 text-xs text-slate-600 dark:text-slate-400">
+                        {mine ? 'Kamu' : 'CS ServiceGo'}, {formatTimeWIB(m.created_at)}
+                      </span>
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
+          )}
+
+          {resolved && (
+            <p className="mt-4 rounded-ctl bg-slate-100 p-3 text-center text-sm text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+              CS menandai percakapan ini selesai. Kirim pesan lagi kalau masih ada yang ingin ditanyakan.
+            </p>
+          )}
         </div>
 
-        {/* Input Form Bar */}
-        <div className="p-3 sm:p-4 border-t border-slate-100 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm shrink-0">
-          <form onSubmit={handleSendMessage} className="flex items-center gap-2">
-            <input
-              ref={inputRef}
-              type="text"
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              disabled={isTyping}
-              placeholder="Tulis pesan atau pertanyaan Anda..."
-              className="flex-1 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3.5 py-2.5 text-xs sm:text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 transition disabled:opacity-50"
-            />
-            <button
-              type="submit"
-              disabled={!inputValue.trim() || isTyping}
-              aria-label="Kirim Pesan"
-              className="h-10 w-10 rounded-xl bg-primary-600 hover:bg-primary-500 disabled:opacity-40 text-white flex items-center justify-center transition active:scale-95 shrink-0 shadow-sm shadow-primary-600/20"
-            >
-              <Send className="h-4 w-4" />
-            </button>
-          </form>
-          <div className="flex items-center justify-between text-[10px] text-slate-400 pt-2 px-1">
-            <span>Didukung Customer Service ServiceGo</span>
-            {userEmail && <span className="truncate max-w-[180px]">{userEmail}</span>}
+        {/* Input */}
+        {chat && (
+          <div className="shrink-0 border-t border-slate-200 p-4 dark:border-slate-800">
+            {chat.error && messages.length > 0 && (
+              <p role="alert" className="mb-2 text-sm text-red-700 dark:text-red-300">
+                {chat.error}
+              </p>
+            )}
+            <form onSubmit={handleSend} className="flex items-end gap-2">
+              <label htmlFor="support-input" className="sr-only">
+                Tulis pesan untuk CS
+              </label>
+              <textarea
+                id="support-input"
+                rows={1}
+                value={inputValue}
+                maxLength={MAX_MESSAGE_LENGTH}
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSend();
+                  }
+                }}
+                placeholder="Tulis pesan untuk CS..."
+                className="max-h-32 min-h-[44px] min-w-0 flex-1 resize-none rounded-ctl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-400"
+              />
+              <button
+                type="submit"
+                disabled={!inputValue.trim() || chat.sending}
+                aria-label="Kirim pesan"
+                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-ctl bg-primary-600 text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600 dark:disabled:bg-slate-700 dark:disabled:text-slate-400 transition-colors"
+              >
+                {chat.sending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Send className="h-4 w-4" aria-hidden />}
+              </button>
+            </form>
+            <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">
+              Enter untuk kirim, Shift+Enter untuk baris baru.{userEmail ? ` Masuk sebagai ${userEmail}.` : ''}
+            </p>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

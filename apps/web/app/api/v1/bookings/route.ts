@@ -1,8 +1,9 @@
 import { NextRequest } from 'next/server';
 import { prisma, BookingStatus } from '@servicego/database';
-import { createBookingSchema } from '@servicego/shared';
+import { createBookingSchema, findActivePromo, promoDiscount } from '@servicego/shared';
 import { apiSuccess, apiError } from '@/lib/response';
 import { getAuthenticatedUser } from '@/lib/auth';
+import { OPERATING_SLOTS, toWIBParts } from '@/lib/wib';
 
 export async function GET(request: NextRequest) {
   try {
@@ -59,7 +60,7 @@ export async function POST(request: NextRequest) {
       return apiError(parsed.error.errors[0]?.message || 'Validasi gagal', 422, parsed.error.format());
     }
 
-    const { vehicle_id, service_ids, scheduled_at, complaint_notes, branch_id } = parsed.data;
+    const { vehicle_id, service_ids, scheduled_at, complaint_notes, branch_id, promo_code } = parsed.data;
 
     // 1. Verifikasi kepemilikan kendaraan
     const vehicle = await prisma.vehicle.findUnique({
@@ -82,10 +83,23 @@ export async function POST(request: NextRequest) {
       return apiError('Satu atau lebih layanan tidak valid atau tidak aktif', 400);
     }
 
-    const estimatedCost = services.reduce(
+    const subtotal = services.reduce(
       (sum, s) => sum + Number(s.price),
       0
     );
+
+    // Kode promo (opsional): diskon persen dipotong dari estimasi biaya layanan.
+    let promoNote: string | null = null;
+    let estimatedCost = subtotal;
+    if (promo_code && promo_code.trim()) {
+      const promo = findActivePromo(promo_code);
+      if (!promo) {
+        return apiError('Kode promo tidak dikenal atau sudah tidak berlaku', 422);
+      }
+      const discount = promoDiscount(promo, subtotal);
+      estimatedCost = subtotal - discount;
+      promoNote = `Kode promo ${promo.code}: diskon ${promo.discount_percent}% (Rp ${discount.toLocaleString('id-ID')}) dari estimasi Rp ${subtotal.toLocaleString('id-ID')}`;
+    }
 
     // 3. Tentukan cabang
     let targetBranchId = branch_id;
@@ -106,6 +120,15 @@ export async function POST(request: NextRequest) {
     }
 
     const scheduledDate = new Date(scheduled_at);
+
+    // Jadwal harus jatuh tepat di salah satu jam slot operasional (WIB) dan belum lewat.
+    const { time: wibTime } = toWIBParts(scheduledDate);
+    if (!OPERATING_SLOTS.includes(wibTime)) {
+      return apiError(`Jam ${wibTime} WIB bukan jam slot bengkel. Pilih salah satu: ${OPERATING_SLOTS.join(', ')}`, 422);
+    }
+    if (scheduledDate.getTime() <= Date.now()) {
+      return apiError('Jadwal yang dipilih sudah lewat. Pilih tanggal atau jam lain.', 422);
+    }
 
     // Hitung durasi dinamis berdasarkan layanan yang dipilih: window = scheduled_at ± (duration / 2)
     const totalDurationMinutes = services.reduce(
@@ -166,7 +189,9 @@ export async function POST(request: NextRequest) {
           booking_id: newBooking.id,
           status: BookingStatus.menunggu,
           changed_by: user.profileId,
-          note: 'Booking berhasil dibuat oleh pelanggan'
+          note: promoNote
+            ? `Booking berhasil dibuat oleh pelanggan. ${promoNote}`
+            : 'Booking berhasil dibuat oleh pelanggan'
         }
       });
 

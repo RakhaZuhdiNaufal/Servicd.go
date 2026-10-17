@@ -6,7 +6,8 @@ export const createBookingSchema = z.object({
   service_ids: z.array(z.string().uuid('ID layanan tidak valid')).min(1, 'Pilih minimal 1 layanan'),
   scheduled_at: z.string().datetime({ message: 'Format tanggal/waktu harus ISO-8601 (contoh: 2026-09-10T09:00:00Z)' }),
   complaint_notes: z.string().optional().nullable(),
-  branch_id: z.string().uuid('ID cabang tidak valid').optional().nullable()
+  branch_id: z.string().uuid('ID cabang tidak valid').optional().nullable(),
+  promo_code: z.string().trim().max(32, 'Kode promo terlalu panjang').optional().nullable()
 });
 
 export const updateBookingStatusSchema = z.object({

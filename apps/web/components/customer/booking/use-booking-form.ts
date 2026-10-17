@@ -1,222 +1,286 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { fetcher } from '@/lib/fetcher';
 import { useAuth } from '@/lib/auth-context';
 import { toast } from 'sonner';
-import { Vehicle, Service, Branch, AvailableSlotsResponse } from './types';
+import { Vehicle, Service, Branch, AvailableSlotsResponse, BookingStep, BookingStepKey, PromoInfo } from './types';
+import { serviceIdsFromQuery, validServiceIds } from './query-params';
 
+/** Tanggal lokal (zona perangkat) dalam format YYYY-MM-DD, `offsetDays` hari dari sekarang. */
+export function localDateString(offsetDays = 0): string {
+  const d = new Date();
+  d.setDate(d.getDate() + offsetDays);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/**
+ * State dan aksi form booking.
+ *
+ * Query param yang didukung (untuk link dari Beranda / detail layanan):
+ * - `service_id`, `service`, atau `services`: pre-select satu atau beberapa layanan
+ *   (`?service_id=a&service_id=b` atau `?service_id=a,b`); ID yang tidak dikenal diabaikan
+ * - `vehicle_id`: pre-select kendaraan (setelah login)
+ * - `branch_id`: pre-select bengkel (bila hanya ada satu bengkel, otomatis terpilih)
+ * - `promo`: isi otomatis kode promo (divalidasi ke daftar /promos)
+ *
+ * Hook ini memakai useSearchParams, jadi komponen pemanggilnya harus dibungkus <Suspense>.
+ */
 export function useBookingForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
 
-  const queryServiceId = searchParams.get('service_id') || searchParams.get('service');
+  const queryServiceIds = serviceIdsFromQuery(searchParams);
+  const queryServiceKey = queryServiceIds.join(',');
   const queryVehicleId = searchParams.get('vehicle_id');
   const queryBranchId = searchParams.get('branch_id');
+  const queryPromo = searchParams.get('promo');
 
-  // Form selections - selectedVehicle starts as empty string (no hardcoded fallback)
+  // Link masuk yang membawa pengguna kembali ke form ini dengan pilihan dari URL.
+  const currentQuery = searchParams.toString();
+  const returnPath = `/booking/new${currentQuery ? `?${currentQuery}` : ''}`;
+  const loginHref = `/login?redirect=${encodeURIComponent(returnPath)}`;
+
+  // Pilihan form, semuanya mulai kosong (tidak ada nilai contoh/hardcode).
   const [selectedVehicle, setSelectedVehicle] = useState<string>('');
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [selectedBranch, setSelectedBranch] = useState<string>('');
   const [selectedDate, setSelectedDate] = useState<string>('');
   const [selectedTime, setSelectedTime] = useState<string>('');
   const [complaintNotes, setComplaintNotes] = useState<string>('');
+  const [promoInput, setPromoInput] = useState<string>(queryPromo ?? '');
+  const [appliedPromo, setAppliedPromo] = useState<PromoInfo | null>(null);
+  const [promoError, setPromoError] = useState<string | null>(null);
 
-  // Default date: tomorrow
+  // Tanggal default: besok (servis paling cepat H+1, sama dengan batas `min` di input tanggal).
   useEffect(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 1);
-    setSelectedDate(d.toISOString().split('T')[0]);
+    setSelectedDate(localDateString(1));
   }, []);
 
-  // Fetch Vehicles (only when authenticated, no mock data fallback)
-  const {
-    data: vehicles = [],
-    isLoading: vLoading,
-    isError: vError
-  } = useQuery<Vehicle[]>({
+  // Kendaraan hanya diambil saat sudah login.
+  const vehiclesQuery = useQuery<Vehicle[]>({
     queryKey: ['vehicles'],
     queryFn: () => fetcher('/vehicles'),
     enabled: !!user
   });
 
-  // Fetch Services
-  const {
-    data: services = [],
-    isLoading: sLoading,
-    isError: sError
-  } = useQuery<Service[]>({
+  const servicesQuery = useQuery<Service[]>({
     queryKey: ['services'],
     queryFn: () => fetcher('/services')
   });
 
-  // Fetch Branches
-  const {
-    data: branches = [],
-    isLoading: bLoading,
-    isError: bError
-  } = useQuery<Branch[]>({
+  const branchesQuery = useQuery<Branch[]>({
     queryKey: ['branches'],
     queryFn: () => fetcher('/branches')
   });
 
-  // Fetch Available Slots for selected branch & date
-  const {
-    data: slotsData,
-    isLoading: slotsLoading,
-    isError: slotsError
-  } = useQuery<AvailableSlotsResponse>({
-    queryKey: ['available-slots', selectedDate, selectedBranch],
-    queryFn: () =>
-      fetcher(
-        `/bookings/available-slots?date=${selectedDate}${
-          selectedBranch ? `&branch_id=${selectedBranch}` : ''
-        }`
-      ),
-    enabled: !!selectedDate
+  // Daftar promo aktif (sumber sama dengan validasi di server).
+  const promosQuery = useQuery<PromoInfo[]>({
+    queryKey: ['promos'],
+    queryFn: () => fetcher('/promos')
   });
 
-  // Filter available slots without mock/hardcode fallback
-  const availableSlots = slotsData?.slots?.filter((s) => s.is_available) ?? [];
+  const vehicles = vehiclesQuery.data ?? [];
+  const services = useMemo(() => servicesQuery.data ?? [], [servicesQuery.data]);
+  const branches = branchesQuery.data ?? [];
 
-  // Pre-selection: Vehicle from URL parameter only (no auto-select fallback)
+  const activeServicesList = services.filter((s) => selectedServices.includes(s.id));
+  const totalCost = activeServicesList.reduce((sum, s) => sum + Number(s.price || 0), 0);
+  const totalDuration = activeServicesList.reduce((sum, s) => sum + Number(s.duration_minutes || 0), 0);
+  // Rumus sama dengan server (promoDiscount di packages/shared): persen dari estimasi, dibulatkan ke rupiah.
+  const promoDiscount = appliedPromo ? Math.round((totalCost * appliedPromo.discount_percent) / 100) : 0;
+  const finalCost = totalCost - promoDiscount;
+
+  function applyPromo(code: string = promoInput) {
+    const normalized = code.trim().toUpperCase();
+    setPromoInput(normalized);
+    if (!normalized) {
+      setPromoError('Isi kode promo dulu.');
+      return;
+    }
+    if (promosQuery.isError) {
+      setPromoError('Daftar promo belum bisa dimuat. Coba lagi sebentar lagi.');
+      return;
+    }
+    const promo = (promosQuery.data ?? []).find((p) => p.code === normalized && p.is_active);
+    if (!promo) {
+      setAppliedPromo(null);
+      setPromoError('Kode promo tidak dikenal atau sudah tidak berlaku.');
+      return;
+    }
+    setAppliedPromo(promo);
+    setPromoError(null);
+  }
+
+  function removePromo() {
+    setAppliedPromo(null);
+    setPromoInput('');
+    setPromoError(null);
+  }
+
+  // Kode dari URL (?promo=) dipakai otomatis begitu daftar promo selesai dimuat.
+  useEffect(() => {
+    if (queryPromo && promosQuery.data) applyPromo(queryPromo);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [promosQuery.data, queryPromo]);
+
+  // Slot jam untuk bengkel & tanggal terpilih. Durasi total dikirim supaya cek bentrok
+  // memakai jendela waktu yang sama dengan validasi di POST /bookings.
+  const slotsQuery = useQuery<AvailableSlotsResponse>({
+    queryKey: ['available-slots', selectedDate, selectedBranch, totalDuration],
+    queryFn: () => {
+      const params = new URLSearchParams({ date: selectedDate });
+      if (selectedBranch) params.set('branch_id', selectedBranch);
+      if (totalDuration > 0) params.set('duration_minutes', String(Math.max(30, totalDuration)));
+      return fetcher(`/bookings/available-slots?${params.toString()}`);
+    },
+    enabled: !!selectedDate && !!selectedBranch
+  });
+
+  const slotsData = slotsQuery.data;
+  const allSlots = useMemo(() => slotsData?.slots ?? [], [slotsData]);
+  const availableSlots = useMemo(() => allSlots.filter((s) => s.is_available), [allSlots]);
+
+  // Pre-select dari URL.
   useEffect(() => {
     if (queryVehicleId && vehicles.some((v) => v.id === queryVehicleId)) {
       setSelectedVehicle(queryVehicleId);
     }
-  }, [vehicles, queryVehicleId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vehiclesQuery.data, queryVehicleId]);
 
-  // Pre-selection: Service from URL parameter only (no auto-select fallback)
+  // Semua layanan dari URL yang valid ikut terpilih; ID yang tidak dikenal diabaikan.
   useEffect(() => {
-    const activeServices = services.filter((s) => s.is_active);
-    if (queryServiceId && activeServices.some((s) => s.id === queryServiceId)) {
-      setSelectedServices((prev) =>
-        prev.includes(queryServiceId) ? prev : [...prev, queryServiceId]
-      );
-    }
-  }, [services, queryServiceId]);
+    const valid = validServiceIds(queryServiceIds, services);
+    if (valid.length === 0) return;
+    setSelectedServices((prev) => {
+      const missing = valid.filter((id) => !prev.includes(id));
+      return missing.length ? [...prev, ...missing] : prev;
+    });
+    // queryServiceKey mewakili queryServiceIds (array baru di setiap render)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [services, queryServiceKey]);
 
-  // Pre-selection: Branch from URL parameter only (no auto-select fallback)
+  // Hanya satu bengkel: langsung terpilih, langkah "Bengkel" dilewati.
+  const singleBranch = branches.length === 1;
+
   useEffect(() => {
     if (queryBranchId && branches.some((b) => b.id === queryBranchId)) {
       setSelectedBranch(queryBranchId);
+    } else if (branches.length === 1) {
+      setSelectedBranch(branches[0].id);
     }
-  }, [branches, queryBranchId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [branchesQuery.data, queryBranchId]);
 
-  // Validate time slot when availableSlots change: reset if selected time is no longer available
+  // Jam yang sudah dipilih dikosongkan lagi kalau tidak tersedia di data slot terbaru.
   useEffect(() => {
-    if (selectedTime) {
-      const isCurrentTimeValid = availableSlots.some((s) => s.time === selectedTime);
-      if (!isCurrentTimeValid) {
-        setSelectedTime('');
-      }
+    if (selectedTime && !slotsQuery.isFetching && !availableSlots.some((s) => s.time === selectedTime)) {
+      setSelectedTime('');
     }
-  }, [availableSlots, selectedTime]);
+  }, [availableSlots, selectedTime, slotsQuery.isFetching]);
 
-  // Calculated active entities
   const activeVehicle = vehicles.find((v) => v.id === selectedVehicle) ?? null;
   const activeBranch = branches.find((b) => b.id === selectedBranch) ?? null;
-  const activeServicesList = services.filter((s) => selectedServices.includes(s.id));
 
-  const totalCost = activeServicesList.reduce(
-    (sum, s) => sum + Number(s.price || 0),
-    0
-  );
-  const totalDuration = activeServicesList.reduce(
-    (sum, s) => sum + Number(s.duration_minutes || 0),
-    0
-  );
-
-  // Toggle selection for vehicle (can be unselected by clicking again)
-  const handleSelectVehicle = (id: string) => {
-    setSelectedVehicle((prev) => (prev === id ? '' : id));
-  };
-
-  // Toggle selection for branch (can be unselected by clicking again)
+  const handleSelectVehicle = (id: string) => setSelectedVehicle((prev) => (prev === id ? '' : id));
   const handleSelectBranch = (id: string) => {
+    if (singleBranch) return; // satu-satunya bengkel tidak bisa dibatalkan
     setSelectedBranch((prev) => (prev === id ? '' : id));
   };
+  const toggleService = (id: string) =>
+    setSelectedServices((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
 
-  // Toggle multiple services (can be unselected completely down to 0)
-  const toggleService = (id: string) => {
-    setSelectedServices((prev) => {
-      if (prev.includes(id)) {
-        return prev.filter((item) => item !== id);
-      }
-      return [...prev, id];
-    });
-  };
-
-  // Stepper logic: strict check (hasVehicle is true ONLY when selectedVehicle is filled)
   const hasVehicle = !!selectedVehicle;
   const hasServices = selectedServices.length > 0;
   const hasBranch = !!selectedBranch;
   const hasSchedule = !!selectedDate && !!selectedTime && availableSlots.length > 0;
 
-  // Booking Mutation
+  const allSteps: Array<Omit<BookingStep, 'number'>> = [
+    { key: 'kendaraan', label: 'Kendaraan', done: hasVehicle },
+    { key: 'layanan', label: 'Layanan', done: hasServices },
+    { key: 'bengkel', label: 'Bengkel', done: hasBranch },
+    { key: 'jadwal', label: 'Jadwal', done: hasSchedule }
+  ];
+  const steps: BookingStep[] = allSteps
+    .filter((step) => !(singleBranch && step.key === 'bengkel'))
+    .map((step, i) => ({ ...step, number: i + 1 }));
+  const scheduleStepNumber = steps.find((s) => s.key === 'jadwal')!.number;
+  // Langkah aktif = langkah pertama yang belum lengkap; null berarti siap dikonfirmasi.
+  const activeStep: BookingStepKey | null = steps.find((s) => !s.done)?.key ?? null;
+
   const bookMutation = useMutation({
     mutationFn: async () => {
       if (!user) {
-        toast.info('Silakan masuk terlebih dahulu untuk menyelesaikan konfirmasi booking.');
-        router.push('/login?redirect=/booking/new');
+        toast.info('Masuk dulu untuk menyelesaikan booking.');
+        router.push(loginHref);
         return null;
       }
+      if (!selectedVehicle) throw new Error('Pilih kendaraan yang akan diservis.');
+      if (selectedServices.length === 0) throw new Error('Pilih minimal satu layanan.');
+      if (!selectedBranch) throw new Error('Pilih bengkel tujuan.');
+      if (!selectedDate || !selectedTime) throw new Error('Tentukan tanggal dan jam kedatangan.');
 
-      if (!selectedVehicle) {
-        throw new Error('Silakan pilih kendaraan yang akan diservis.');
-      }
-      if (selectedServices.length === 0) {
-        throw new Error('Silakan pilih minimal satu jenis layanan.');
-      }
-      if (!selectedBranch) {
-        throw new Error('Silakan pilih bengkel tujuan.');
-      }
-      if (!selectedDate || !selectedTime) {
-        throw new Error('Silakan tentukan tanggal dan jam kedatangan.');
-      }
-
-      // Compose ISO date string with WIB (+07:00) timezone offset
+      // Jam slot adalah jam WIB, jadi digabung dengan offset +07:00 lalu dikirim sebagai ISO.
       const scheduledDateTime = new Date(`${selectedDate}T${selectedTime}:00+07:00`).toISOString();
 
-      return fetcher('/bookings', {
+      return fetcher<{ id: string }>('/bookings', {
         method: 'POST',
         body: JSON.stringify({
           vehicle_id: selectedVehicle,
           service_ids: selectedServices,
           branch_id: selectedBranch,
           scheduled_at: scheduledDateTime,
-          complaint_notes: complaintNotes.trim() || null
+          complaint_notes: complaintNotes.trim() || null,
+          promo_code: appliedPromo?.code ?? null
         })
       });
     },
-    onSuccess: (data: any) => {
+    onSuccess: (data) => {
       if (!data) return;
-      toast.success('Booking servis berhasil dibuat!');
-      router.replace(`/bookings/${data?.id ?? ''}`);
+      toast.success('Booking berhasil dibuat.');
+      router.replace(`/bookings/${data.id}`);
     },
-    onError: (err: any) => {
-      toast.error(err.message || 'Gagal membuat booking. Silakan coba lagi.');
+    onError: (err: Error) => {
+      toast.error(err.message || 'Booking belum berhasil dibuat. Coba lagi.');
     }
   });
 
-  // Submit button disabled validation
   const isSubmitDisabled =
     bookMutation.isPending ||
     !hasVehicle ||
     !hasServices ||
     !hasBranch ||
     !hasSchedule ||
-    availableSlots.length === 0 ||
-    slotsLoading ||
-    slotsError;
+    slotsQuery.isLoading ||
+    slotsQuery.isError;
+
+  // Alasan tombol konfirmasi belum aktif, ditampilkan di dekat tombol.
+  const missingHint: string | null = authLoading
+    ? null
+    : !user
+    ? 'Perlu masuk akun dulu.'
+    : !hasVehicle
+    ? 'Pilih kendaraan dulu.'
+    : !hasServices
+    ? 'Pilih minimal satu layanan.'
+    : !hasBranch
+    ? 'Pilih bengkel tujuan.'
+    : !selectedTime
+    ? 'Pilih jam kedatangan.'
+    : null;
 
   return {
-    // Auth & state
     user,
-    // Selections
+    authLoading,
+    loginHref,
+    // Pilihan
     selectedVehicle,
     setSelectedVehicle: handleSelectVehicle,
     selectedServices,
@@ -229,33 +293,55 @@ export function useBookingForm() {
     setSelectedTime,
     complaintNotes,
     setComplaintNotes,
-    // Data & loading
+    // Data
     vehicles,
-    vLoading,
-    vError,
+    vLoading: vehiclesQuery.isLoading,
+    vError: vehiclesQuery.isError,
+    refetchVehicles: vehiclesQuery.refetch,
     services,
-    sLoading,
-    sError,
+    sLoading: servicesQuery.isLoading,
+    sError: servicesQuery.isError,
+    refetchServices: servicesQuery.refetch,
     branches,
-    bLoading,
-    bError,
+    bLoading: branchesQuery.isLoading,
+    bError: branchesQuery.isError,
+    refetchBranches: branchesQuery.refetch,
     slotsData,
-    slotsLoading,
-    slotsError,
+    allSlots,
+    slotsLoading: slotsQuery.isLoading,
+    slotsError: slotsQuery.isError,
+    refetchSlots: slotsQuery.refetch,
     availableSlots,
-    // Active helpers
+    // Turunan
     activeVehicle,
     activeBranch,
     activeServicesList,
     totalCost,
     totalDuration,
-    // Step completion
+    // Promo
+    promoInput,
+    setPromoInput,
+    appliedPromo,
+    promoError,
+    promoLoading: promosQuery.isLoading,
+    applyPromo: () => applyPromo(),
+    removePromo,
+    promoDiscount,
+    finalCost,
+    // Langkah
+    steps,
+    activeStep,
+    singleBranch,
+    scheduleStepNumber,
     hasVehicle,
     hasServices,
     hasBranch,
     hasSchedule,
-    // Action
+    // Aksi
     bookMutation,
-    isSubmitDisabled
+    isSubmitDisabled,
+    missingHint
   };
 }
+
+export type BookingForm = ReturnType<typeof useBookingForm>;

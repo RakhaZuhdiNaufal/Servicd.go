@@ -1,8 +1,5 @@
-// Customer login/register bypass CustomerShell (no auth guard — user isn't logged in yet)
-export default function CustomerAuthLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="min-h-screen bg-[var(--bg-base)]">
-      {children}
-    </div>
-  );
+import { AuthFrame } from '@/components/customer/auth-frame';
+
+export default function CustomerLoginLayout({ children }: { children: React.ReactNode }) {
+  return <AuthFrame>{children}</AuthFrame>;
 }

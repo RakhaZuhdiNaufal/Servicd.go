@@ -2,48 +2,100 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetcher } from '@/lib/fetcher';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { createServiceSchema, type CreateServiceInput } from '@servicego/shared';
-import { SkeletonCard } from '@/components/skeletons';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, Clock, Wrench } from 'lucide-react';
+import { Pencil, Plus, Power, Wrench } from 'lucide-react';
+import { fetcher } from '@/lib/fetcher';
+import { formatDuration, formatRp } from '@/lib/format';
+import { EmptyState, ErrorState } from '@/components/customer/states';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter
-} from '@/components/ui/dialog';
+  ActiveBadge,
+  AdminDialog,
+  AdminPageHeader,
+  Field,
+  Segmented,
+  TableCard,
+  TableSkeleton,
+  Td,
+  Th,
+  btnDanger,
+  btnPrimary,
+  btnRow,
+  btnRowDanger,
+  btnSecondary,
+  inputCls,
+  tbodyCls,
+  theadCls
+} from '@/components/admin/resource-ui';
 
 interface Service {
   id: string;
   name: string;
   description: string | null;
-  price: number;
+  // Prisma Decimal dikirim sebagai string ("350000.00")
+  price: number | string;
   duration_minutes: number;
   is_active: boolean;
 }
+
+// Skema yang sama dengan API, hanya pesan untuk kolom angka kosong dibuat jelas.
+const formSchema = createServiceSchema.extend({
+  price: z
+    .number({ invalid_type_error: 'Harga wajib diisi', required_error: 'Harga wajib diisi' })
+    .positive('Harga layanan harus lebih dari 0'),
+  duration_minutes: z
+    .number({ invalid_type_error: 'Durasi wajib diisi', required_error: 'Durasi wajib diisi' })
+    .int('Durasi harus bilangan bulat')
+    .positive('Durasi harus minimal 1 menit')
+});
+
+type ActiveFilter = 'all' | 'active' | 'inactive';
 
 export default function ServicesPage() {
   const qc = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<Service | null>(null);
+  const [deactivateTarget, setDeactivateTarget] = useState<Service | null>(null);
+  const [activeFilter, setActiveFilter] = useState<ActiveFilter>('all');
 
-  const { data: services = [], isLoading } = useQuery<Service[]>({
-    queryKey: ['services'],
-    queryFn: () => fetcher('/services')
+  // Endpoint admin: layanan nonaktif ikut tampil (endpoint publik /services hanya yang aktif)
+  const { data: allServices = [], isLoading, isError, error, refetch } = useQuery<Service[]>({
+    queryKey: ['admin-services'],
+    queryFn: () => fetcher('/admin/services')
   });
 
-  const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm<CreateServiceInput>({
-    resolver: zodResolver(createServiceSchema),
+  const activeCount = allServices.filter((s) => s.is_active).length;
+  const inactiveCount = allServices.length - activeCount;
+  const services =
+    activeFilter === 'active'
+      ? allServices.filter((s) => s.is_active)
+      : activeFilter === 'inactive'
+        ? allServices.filter((s) => !s.is_active)
+        : allServices;
+
+  function invalidateServices() {
+    qc.invalidateQueries({ queryKey: ['admin-services'] });
+    // Cache daftar publik (dipakai form booking & landing) ikut disegarkan
+    qc.invalidateQueries({ queryKey: ['services'] });
+  }
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors }
+  } = useForm<CreateServiceInput>({
+    resolver: zodResolver(formSchema),
     defaultValues: { is_active: true }
   });
 
   function openAdd() {
     setEditTarget(null);
-    reset({ is_active: true });
+    reset({ name: '', description: '', is_active: true });
+    saveMutation.reset();
     setDialogOpen(true);
   }
 
@@ -52,10 +104,11 @@ export default function ServicesPage() {
     reset({
       name: s.name,
       description: s.description ?? undefined,
-      price: s.price,
+      price: Number(s.price),
       duration_minutes: s.duration_minutes,
       is_active: s.is_active
     });
+    saveMutation.reset();
     setDialogOpen(true);
   }
 
@@ -66,167 +119,312 @@ export default function ServicesPage() {
         : fetcher('/admin/services', { method: 'POST', body: JSON.stringify(data) }),
     onSuccess: () => {
       toast.success(editTarget ? 'Layanan diperbarui' : 'Layanan ditambahkan');
-      qc.invalidateQueries({ queryKey: ['services'] });
+      invalidateServices();
       setDialogOpen(false);
     },
     onError: (e: Error) => toast.error(e.message)
   });
 
+  // API melakukan soft-delete: is_active = false
   const deleteMutation = useMutation({
     mutationFn: (id: string) => fetcher(`/admin/services/${id}`, { method: 'DELETE' }),
     onSuccess: () => {
-      toast.success('Layanan dihapus');
-      qc.invalidateQueries({ queryKey: ['services'] });
+      toast.success('Layanan dinonaktifkan');
+      invalidateServices();
+      setDeactivateTarget(null);
     },
     onError: (e: Error) => toast.error(e.message)
   });
 
-  const formatRp = (v: number) =>
-    new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(v);
+  // Aktifkan lagi layanan yang pernah dinonaktifkan
+  const activateMutation = useMutation({
+    mutationFn: (id: string) =>
+      fetcher(`/admin/services/${id}`, { method: 'PUT', body: JSON.stringify({ is_active: true }) }),
+    onSuccess: () => {
+      toast.success('Layanan diaktifkan lagi');
+      invalidateServices();
+    },
+    onError: (e: Error) => toast.error(e.message)
+  });
 
-  if (isLoading) return <SkeletonCard count={6} />;
+  const emptyFilterText =
+    activeFilter === 'inactive' ? 'Tidak ada layanan nonaktif' : 'Tidak ada layanan aktif';
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-          <Wrench className="h-6 w-6 text-primary-500" />
-          Layanan
-        </h1>
-        <button
-          onClick={openAdd}
-          className="flex items-center gap-1.5 rounded-md bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium px-3 py-2 transition"
+    <div className="space-y-5">
+      <AdminPageHeader
+        title="Layanan"
+        description="Semua layanan bengkel. Hanya layanan aktif yang bisa dipilih pelanggan saat booking."
+        action={
+          <button type="button" onClick={openAdd} className={btnPrimary}>
+            <Plus className="h-4 w-4" aria-hidden />
+            Tambah layanan
+          </button>
+        }
+      />
+
+      {!isLoading && !isError && allServices.length > 0 && (
+        <Segmented<ActiveFilter>
+          label="Filter status layanan"
+          value={activeFilter}
+          onChange={setActiveFilter}
+          options={[
+            { value: 'all', label: `Semua (${allServices.length})` },
+            { value: 'active', label: `Aktif (${activeCount})` },
+            { value: 'inactive', label: `Nonaktif (${inactiveCount})` }
+          ]}
+        />
+      )}
+
+      {isLoading ? (
+        <TableSkeleton cols={5} />
+      ) : isError ? (
+        <ErrorState title="Daftar layanan belum bisa dimuat" message={(error as Error)?.message} onRetry={() => refetch()} />
+      ) : allServices.length === 0 ? (
+        <EmptyState
+          icon={Wrench}
+          title="Belum ada layanan"
+          description="Tambahkan layanan pertama supaya pelanggan bisa mulai booking."
+          action={{ label: 'Tambah layanan', onClick: openAdd }}
+        />
+      ) : services.length === 0 ? (
+        <EmptyState
+          icon={Wrench}
+          title={emptyFilterText}
+          description="Pilih filter lain untuk melihat layanan lainnya."
+          action={{ label: 'Tampilkan semua', onClick: () => setActiveFilter('all') }}
+        />
+      ) : (
+        <TableCard
+          footer={
+            <p className="border-t border-slate-200 px-4 py-2.5 text-[13px] tabular-nums text-slate-600 dark:border-slate-800 dark:text-slate-400">
+              {services.length} layanan
+              {activeFilter === 'all' && inactiveCount > 0 ? `, ${inactiveCount} nonaktif` : ''}
+            </p>
+          }
         >
-          <Plus className="h-4 w-4" />
-          Tambah Layanan
-        </button>
-      </div>
+          <table className="hidden w-full text-sm md:table">
+            <thead className={theadCls}>
+              <tr>
+                <Th>Layanan</Th>
+                <Th align="right">Durasi</Th>
+                <Th align="right">Harga</Th>
+                <Th>Status</Th>
+                <Th align="right">
+                  <span className="sr-only">Aksi</span>
+                </Th>
+              </tr>
+            </thead>
+            <tbody className={tbodyCls}>
+              {services.map((s) => (
+                <tr key={s.id} className="transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                  <Td>
+                    <p className={s.is_active ? 'font-medium text-slate-900 dark:text-white' : 'font-medium text-slate-600 dark:text-slate-400'}>
+                      {s.name}
+                    </p>
+                    {s.description && (
+                      <p className="max-w-xs truncate text-[13px] text-slate-600 dark:text-slate-400">{s.description}</p>
+                    )}
+                  </Td>
+                  <Td align="right" className="whitespace-nowrap tabular-nums text-slate-700 dark:text-slate-300">
+                    {formatDuration(s.duration_minutes)}
+                  </Td>
+                  <Td align="right" className="whitespace-nowrap font-semibold tabular-nums text-slate-900 dark:text-white">
+                    {formatRp(s.price)}
+                  </Td>
+                  <Td>
+                    <ActiveBadge active={s.is_active} />
+                  </Td>
+                  <Td align="right">
+                    <div className="flex justify-end gap-1">
+                      <button type="button" onClick={() => openEdit(s)} className={btnRow} aria-label={`Ubah ${s.name}`}>
+                        <Pencil className="h-3.5 w-3.5" aria-hidden />
+                        Ubah
+                      </button>
+                      {s.is_active ? (
+                        <button
+                          type="button"
+                          onClick={() => setDeactivateTarget(s)}
+                          className={btnRowDanger}
+                          aria-label={`Nonaktifkan ${s.name}`}
+                        >
+                          <Power className="h-3.5 w-3.5" aria-hidden />
+                          Nonaktifkan
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => activateMutation.mutate(s.id)}
+                          disabled={activateMutation.isPending}
+                          className={btnRow}
+                          aria-label={`Aktifkan ${s.name}`}
+                        >
+                          <Power className="h-3.5 w-3.5" aria-hidden />
+                          Aktifkan
+                        </button>
+                      )}
+                    </div>
+                  </Td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
 
-      {/* Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-        {services.map((s) => (
-          <div
-            key={s.id}
-            className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 p-4 space-y-3"
-          >
-            <div className="flex items-start justify-between gap-2">
-              <h3 className="font-semibold text-slate-800 dark:text-slate-200 leading-tight">{s.name}</h3>
-              <span
-                className={`shrink-0 text-xs font-medium px-2 py-0.5 rounded-full ${
-                  s.is_active
-                    ? 'bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300'
-                    : 'bg-slate-100 text-slate-500 dark:bg-slate-800'
-                }`}
-              >
-                {s.is_active ? 'Aktif' : 'Nonaktif'}
-              </span>
-            </div>
-            {s.description && (
-              <p className="text-sm text-slate-500 dark:text-slate-400 line-clamp-2">{s.description}</p>
-            )}
-            <div className="flex items-center gap-4 text-sm">
-              <span className="font-data font-semibold text-primary-700 dark:text-primary-400">
-                {formatRp(s.price)}
-              </span>
-              <span className="flex items-center gap-1 text-slate-500 dark:text-slate-400">
-                <Clock className="h-3.5 w-3.5" />
-                {s.duration_minutes} mnt
-              </span>
-            </div>
-            <div className="flex gap-2 pt-1">
-              <button
-                onClick={() => openEdit(s)}
-                className="flex items-center gap-1.5 text-xs rounded border border-slate-200 dark:border-slate-700 px-2.5 py-1.5 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
-              >
-                <Pencil className="h-3 w-3" />
-                Edit
-              </button>
-              <button
-                onClick={() => {
-                  if (confirm(`Hapus layanan "${s.name}"?`)) deleteMutation.mutate(s.id);
-                }}
-                className="flex items-center gap-1.5 text-xs rounded border border-red-200 px-2.5 py-1.5 text-red-600 hover:bg-red-50 transition"
-              >
-                <Trash2 className="h-3 w-3" />
-                Hapus
-              </button>
-            </div>
-          </div>
-        ))}
-        {!services.length && (
-          <div className="col-span-full text-center py-16 text-slate-400">
-            Belum ada layanan — tambah layanan pertama
-          </div>
-        )}
-      </div>
+          <ul className={`md:hidden ${tbodyCls}`}>
+            {services.map((s) => (
+              <li key={s.id} className="space-y-2 px-4 py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-medium text-slate-900 dark:text-white">{s.name}</p>
+                    <p className="text-[13px] tabular-nums text-slate-600 dark:text-slate-400">
+                      {formatDuration(s.duration_minutes)}
+                    </p>
+                    {!s.is_active && (
+                      <div className="mt-1">
+                        <ActiveBadge active={false} />
+                      </div>
+                    )}
+                  </div>
+                  <p className="shrink-0 font-semibold tabular-nums text-slate-900 dark:text-white">{formatRp(s.price)}</p>
+                </div>
+                <div className="flex gap-1">
+                  <button type="button" onClick={() => openEdit(s)} className={`${btnRow} h-11 border border-slate-200 dark:border-slate-700`} aria-label={`Ubah ${s.name}`}>
+                    <Pencil className="h-3.5 w-3.5" aria-hidden />
+                    Ubah
+                  </button>
+                  {s.is_active ? (
+                    <button type="button" onClick={() => setDeactivateTarget(s)} className={`${btnRowDanger} h-11`} aria-label={`Nonaktifkan ${s.name}`}>
+                      <Power className="h-3.5 w-3.5" aria-hidden />
+                      Nonaktifkan
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => activateMutation.mutate(s.id)}
+                      disabled={activateMutation.isPending}
+                      className={`${btnRow} h-11`}
+                      aria-label={`Aktifkan ${s.name}`}
+                    >
+                      <Power className="h-3.5 w-3.5" aria-hidden />
+                      Aktifkan
+                    </button>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </TableCard>
+      )}
 
-      {/* Add/Edit Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{editTarget ? 'Edit Layanan' : 'Tambah Layanan'}</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleSubmit((d) => saveMutation.mutate(d))} className="space-y-4 py-2">
-            <div className="space-y-1">
-              <label htmlFor="name" className="text-sm font-medium text-slate-700 dark:text-slate-300">Nama Layanan</label>
+      {/* Tambah / ubah */}
+      <AdminDialog
+        open={dialogOpen}
+        onClose={() => setDialogOpen(false)}
+        title={editTarget ? 'Ubah layanan' : 'Tambah layanan'}
+        footer={
+          <>
+            <button type="button" onClick={() => setDialogOpen(false)} className={btnSecondary}>
+              Batal
+            </button>
+            <button type="submit" form="service-form" disabled={saveMutation.isPending} className={btnPrimary}>
+              {saveMutation.isPending ? 'Menyimpan...' : editTarget ? 'Simpan perubahan' : 'Simpan layanan'}
+            </button>
+          </>
+        }
+      >
+        <form id="service-form" noValidate onSubmit={handleSubmit((d) => saveMutation.mutate(d))} className="space-y-4">
+          <Field id="s-name" label="Nama layanan" error={errors.name?.message} required>
+            <input
+              id="s-name"
+              {...register('name')}
+              placeholder="Contoh: Ganti oli mesin"
+              aria-invalid={!!errors.name}
+              aria-describedby={errors.name ? 's-name-error' : undefined}
+              className={inputCls}
+            />
+          </Field>
+          <Field id="s-description" label="Deskripsi" hint="Opsional. Tampil di halaman detail layanan pelanggan.">
+            <textarea
+              id="s-description"
+              rows={3}
+              {...register('description')}
+              aria-describedby="s-description-hint"
+              className={`${inputCls} py-2`}
+            />
+          </Field>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field id="s-price" label="Harga (Rp)" error={errors.price?.message} required>
               <input
-                id="name"
-                {...register('name')}
-                placeholder="Ganti Oli Mesin"
-                className="w-full rounded-sm border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary-500"
+                id="s-price"
+                type="number"
+                inputMode="numeric"
+                min={0}
+                step={1000}
+                {...register('price', { valueAsNumber: true })}
+                placeholder="150000"
+                aria-invalid={!!errors.price}
+                aria-describedby={errors.price ? 's-price-error' : undefined}
+                className={`${inputCls} tabular-nums`}
               />
-              {errors.name && <p className="text-xs text-red-500">{errors.name.message}</p>}
-            </div>
-            <div className="space-y-1">
-              <label htmlFor="description" className="text-sm font-medium text-slate-700 dark:text-slate-300">Deskripsi (opsional)</label>
-              <textarea
-                id="description"
-                {...register('description')}
-                rows={2}
-                className="w-full rounded-sm border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary-500"
+            </Field>
+            <Field id="s-duration" label="Durasi (menit)" error={errors.duration_minutes?.message} required>
+              <input
+                id="s-duration"
+                type="number"
+                inputMode="numeric"
+                min={1}
+                {...register('duration_minutes', { valueAsNumber: true })}
+                placeholder="60"
+                aria-invalid={!!errors.duration_minutes}
+                aria-describedby={errors.duration_minutes ? 's-duration-error' : undefined}
+                className={`${inputCls} tabular-nums`}
               />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label htmlFor="price" className="text-sm font-medium text-slate-700 dark:text-slate-300">Harga (Rp)</label>
-                <input
-                  id="price"
-                  type="number"
-                  {...register('price', { valueAsNumber: true })}
-                  placeholder="150000"
-                  className="w-full rounded-sm border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary-500"
-                />
-                {errors.price && <p className="text-xs text-red-500">{errors.price.message}</p>}
-              </div>
-              <div className="space-y-1">
-                <label htmlFor="duration_minutes" className="text-sm font-medium text-slate-700 dark:text-slate-300">Durasi (menit)</label>
-                <input
-                  id="duration_minutes"
-                  type="number"
-                  {...register('duration_minutes', { valueAsNumber: true })}
-                  placeholder="60"
-                  className="w-full rounded-sm border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary-500"
-                />
-                {errors.duration_minutes && <p className="text-xs text-red-500">{errors.duration_minutes.message}</p>}
-              </div>
-            </div>
-            <label className="flex items-center gap-2 text-sm cursor-pointer">
-              <input type="checkbox" {...register('is_active')} className="rounded" />
-              <span className="text-slate-700 dark:text-slate-300">Layanan aktif</span>
-            </label>
-            <DialogFooter>
-              <button type="button" onClick={() => setDialogOpen(false)}
-                className="rounded-md border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
-                Batal
-              </button>
-              <button type="submit" disabled={saveMutation.isPending}
-                className="rounded-md bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 text-sm font-medium transition disabled:opacity-50">
-                {saveMutation.isPending ? 'Menyimpan…' : 'Simpan'}
-              </button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+            </Field>
+          </div>
+          <label className="flex min-h-[44px] cursor-pointer items-start gap-3 rounded-ctl border border-slate-200 px-3 py-2.5 dark:border-slate-800">
+            <input type="checkbox" {...register('is_active')} className="mt-0.5 h-4 w-4 rounded border-slate-300 accent-primary-600" />
+            <span className="text-sm">
+              <span className="block font-medium text-slate-900 dark:text-white">Layanan aktif</span>
+              <span className="block text-[13px] text-slate-600 dark:text-slate-400">
+                Layanan nonaktif tidak bisa dipilih pelanggan, tapi tetap tampil di daftar ini dengan label Nonaktif.
+              </span>
+            </span>
+          </label>
+          {saveMutation.isError && (
+            <p role="alert" className="text-sm text-red-700 dark:text-red-300">
+              {saveMutation.error.message}
+            </p>
+          )}
+        </form>
+      </AdminDialog>
+
+      {/* Konfirmasi nonaktifkan */}
+      <AdminDialog
+        open={!!deactivateTarget}
+        onClose={() => setDeactivateTarget(null)}
+        size="sm"
+        title="Nonaktifkan layanan?"
+        footer={
+          <>
+            <button type="button" onClick={() => setDeactivateTarget(null)} className={btnSecondary}>
+              Batal
+            </button>
+            <button
+              type="button"
+              onClick={() => deactivateTarget && deleteMutation.mutate(deactivateTarget.id)}
+              disabled={deleteMutation.isPending}
+              className={btnDanger}
+            >
+              {deleteMutation.isPending ? 'Memproses...' : 'Nonaktifkan'}
+            </button>
+          </>
+        }
+      >
+        <p className="text-sm text-slate-700 dark:text-slate-300">
+          <strong className="text-slate-900 dark:text-white">{deactivateTarget?.name}</strong> tidak bisa dipilih lagi untuk
+          booking baru. Riwayat booking yang memakai layanan ini tetap tersimpan.
+        </p>
+      </AdminDialog>
     </div>
   );
 }

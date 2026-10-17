@@ -68,11 +68,13 @@ export async function middleware(request: NextRequest) {
       );
     }
 
-    // Ambil role & profile_id dari metadata atau dari tabel profiles
-    let role = (user.app_metadata?.role || user.user_metadata?.role || 'customer') as string;
-    let profileId = (user.user_metadata?.profile_id || '') as string;
+    // Role & profile_id HANYA dari app_metadata (diisi server lewat service role).
+    // user_metadata bisa diubah sendiri oleh pengguna dari browser (supabase.auth.updateUser),
+    // jadi tidak boleh dipakai untuk hak akses.
+    let role = (user.app_metadata?.role || '') as string;
+    let profileId = (user.app_metadata?.profile_id || '') as string;
 
-    // Jika role/profileId belum ada di metadata dan bukan sync-profile, cari di tabel profiles via Supabase Admin
+    // Jika belum ada di app_metadata, cari di tabel profiles via Supabase Admin
     if ((!profileId || !role) && pathname !== '/api/v1/auth/sync-profile') {
       try {
         const adminSupabase = getSupabaseAdmin();
@@ -90,6 +92,8 @@ export async function middleware(request: NextRequest) {
         // Fallback jika database belum terhubung
       }
     }
+
+    if (!role) role = 'customer';
 
     // Role-Based Access Control (RBAC) untuk endpoint admin
     if (pathname.startsWith('/api/v1/admin')) {

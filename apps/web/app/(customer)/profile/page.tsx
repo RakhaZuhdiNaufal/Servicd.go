@@ -1,48 +1,24 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useForm, type FieldError } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { createVehicleSchema, type CreateVehicleInput } from '@servicego/shared';
+import { toast } from 'sonner';
+import { clsx } from 'clsx';
+import { Bike, CalendarPlus, Car, Gauge, Loader2, Lock, LogOut, Mail, Pencil, Phone, Plus, Trash2, Wrench, X } from 'lucide-react';
 import { fetcher } from '@/lib/fetcher';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase-client';
-import { useRouter } from 'next/navigation';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import {
-  createVehicleSchema,
-  type CreateVehicleInput
-} from '@servicego/shared';
-import { toast } from 'sonner';
-import {
-  Mail,
-  Phone,
-  Lock,
-  Pencil,
-  Trash2,
-  Plus,
-  LogOut,
-  Calendar,
-  CalendarCheck,
-  Wallet,
-  Clock,
-  Check,
-  Gauge,
-  Fuel,
-  ChevronRight,
-  ArrowRight,
-  MoreVertical,
-  AlertTriangle,
-  Car as CarIcon
-} from 'lucide-react';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter
-} from '@/components/ui/dialog';
+import { formatDate, formatRp } from '@/lib/format';
+import { Plate } from '@/components/customer/plate';
+import { MaintenanceList } from '@/components/customer/maintenance-list';
+import { EmptyState, ErrorState, SkeletonBlock } from '@/components/customer/states';
 
+/** Bentuk data GET /api/v1/profile */
 interface ProfileResponse {
   profile: {
     id: string;
@@ -59,6 +35,7 @@ interface ProfileResponse {
   };
 }
 
+/** Bentuk data GET /api/v1/vehicles */
 interface Vehicle {
   id: string;
   plate_number: string;
@@ -70,84 +47,105 @@ interface Vehicle {
   last_service_date: string | null;
 }
 
-const formatRp = (v: number | string | null | undefined) =>
-  new Intl.NumberFormat('id-ID', {
-    style: 'currency',
-    currency: 'IDR',
-    maximumFractionDigits: 0
-  }).format(Number(v) || 0);
+const inputClass =
+  'h-11 w-full rounded-ctl border bg-white px-3.5 text-[15px] text-slate-900 placeholder:text-slate-500 transition-colors dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500';
+const labelClass = 'block text-sm font-medium text-slate-800 dark:text-slate-200';
+const errorTextClass = 'text-sm text-red-700 dark:text-red-300';
+const btnPrimary =
+  'inline-flex min-h-[44px] items-center justify-center gap-2 rounded-ctl bg-primary-600 px-4 text-sm font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-70 transition-colors';
+const btnSecondary =
+  'inline-flex min-h-[44px] items-center justify-center gap-2 rounded-ctl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-800 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 transition-colors';
+const btnDanger =
+  'inline-flex min-h-[44px] items-center justify-center gap-2 rounded-ctl bg-red-600 px-4 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-70 transition-colors';
 
-const formatDate = (dateStr: string | null | undefined) => {
-  if (!dateStr) return 'Belum pernah servis';
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return 'Belum pernah servis';
-  return d.toLocaleDateString('id-ID', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric'
-  });
-};
+function borderFor(error?: unknown) {
+  return error ? 'border-red-500 dark:border-red-500' : 'border-slate-300 dark:border-slate-700';
+}
 
-/* Vector illustration for car */
-function CarVector() {
+/** Pesan bawaan zod untuk angka kosong berbahasa Inggris; ganti dengan kalimat yang jelas. */
+function fieldMessage(err: FieldError | undefined, fallback: string) {
+  if (!err) return null;
+  const msg = err.message ?? '';
+  return !msg || /expected|nan|required|invalid/i.test(msg) ? fallback : msg;
+}
+
+function initials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  const letters = parts.length > 1 ? `${parts[0]![0]}${parts[parts.length - 1]![0]}` : (parts[0] ?? '?').slice(0, 1);
+  return letters.toUpperCase();
+}
+
+/**
+ * Dialog berbasis elemen <dialog> bawaan browser: Escape menutup, fokus terkunci di dalam,
+ * dan fokus kembali ke tombol pemicu saat ditutup. Tanpa animasi (MOTION 1).
+ */
+function Modal({
+  open,
+  onClose,
+  title,
+  description,
+  children
+}: {
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  description?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  const ref = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
+  const descId = useId();
+
+  useEffect(() => {
+    const d = ref.current;
+    if (!d) return;
+    if (open && !d.open) d.showModal();
+    if (!open && d.open) d.close();
+  }, [open]);
+
   return (
-    <svg viewBox="0 0 120 70" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-auto drop-shadow-xs">
-      <path
-        d="M10 44C10 40 14 36 22 35L36 33L48 18C52 14 58 13 65 13H86C93 13 99 17 103 23L111 36C116 38 118 41 118 45V51C118 53 116 55 114 55H108C108 50 103 46 97 46C91 46 86 50 86 55H44C44 50 39 46 33 46C27 46 22 50 22 55H14C11.8 55 10 53.2 10 51V44Z"
-        fill="#F1F5F9"
-        stroke="#94A3B8"
-        strokeWidth="1.5"
-      />
-      {/* Windows */}
-      <path d="M50 18L39 32H62V16H54C52.5 16 51 16.8 50 18Z" fill="#38BDF8" fillOpacity="0.4" stroke="#64748B" strokeWidth="1" />
-      <path d="M66 16V32H84L79 16H66Z" fill="#38BDF8" fillOpacity="0.4" stroke="#64748B" strokeWidth="1" />
-      <path d="M88 18L97 32H88V18Z" fill="#38BDF8" fillOpacity="0.3" stroke="#64748B" strokeWidth="1" />
-      {/* Wheels */}
-      <circle cx="33" cy="55" r="9" fill="#1E293B" stroke="#CBD5E1" strokeWidth="2" />
-      <circle cx="33" cy="55" r="4" fill="#94A3B8" />
-      <circle cx="97" cy="55" r="9" fill="#1E293B" stroke="#CBD5E1" strokeWidth="2" />
-      <circle cx="97" cy="55" r="4" fill="#94A3B8" />
-      {/* Headlight */}
-      <path d="M110 39L115 42L110 44V39Z" fill="#FBBF24" />
-      {/* Character lines */}
-      <line x1="36" y1="36" x2="98" y2="36" stroke="#CBD5E1" strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
+    <dialog
+      ref={ref}
+      aria-labelledby={titleId}
+      aria-describedby={description ? descId : undefined}
+      onClose={onClose}
+      onClick={(e) => {
+        // Klik di area gelap (backdrop) menutup dialog
+        if (e.target === e.currentTarget) onClose();
+      }}
+      className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md overflow-y-auto rounded-[20px] border border-slate-200 bg-white p-0 text-slate-900 shadow-xl backdrop:bg-slate-950/60 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+    >
+      {open && (
+        <div className="space-y-5 p-6">
+          <div className="flex items-start justify-between gap-3">
+            <div className="space-y-1">
+              <h2 id={titleId} className="text-[22px] font-extrabold tracking-[-0.01em] text-slate-900 dark:text-white">
+                {title}
+              </h2>
+              {description && (
+                <div id={descId} className="text-sm text-slate-600 dark:text-slate-400">
+                  {description}
+                </div>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Tutup dialog"
+              className="-mr-2 -mt-2 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-ctl text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white transition-colors"
+            >
+              <X className="h-5 w-5" aria-hidden />
+            </button>
+          </div>
+          {children}
+        </div>
+      )}
+    </dialog>
   );
 }
 
-/* Vector illustration for motor */
-function MotorVector() {
-  return (
-    <svg viewBox="0 0 100 70" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-auto drop-shadow-xs">
-      {/* Front wheel */}
-      <circle cx="24" cy="52" r="11" fill="#1E293B" stroke="#CBD5E1" strokeWidth="2" />
-      <circle cx="24" cy="52" r="5" fill="#94A3B8" />
-      {/* Back wheel */}
-      <circle cx="78" cy="52" r="11" fill="#1E293B" stroke="#CBD5E1" strokeWidth="2" />
-      <circle cx="78" cy="52" r="5" fill="#94A3B8" />
-      {/* Frame & body */}
-      <path
-        d="M24 52L36 28L46 36L64 34L76 42L78 52"
-        stroke="#475569"
-        strokeWidth="3"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      {/* Fairing & seat */}
-      <path
-        d="M32 25C32 25 36 18 42 18H54C60 18 64 24 72 26L78 35H62L52 38L42 32L34 26"
-        fill="#334155"
-        stroke="#1E293B"
-        strokeWidth="1.5"
-      />
-      {/* Handlebar */}
-      <path d="M38 18L34 14H42" stroke="#0F172A" strokeWidth="2.5" strokeLinecap="round" />
-      {/* Headlight */}
-      <path d="M32 24L26 26" stroke="#FBBF24" strokeWidth="3" strokeLinecap="round" />
-      {/* Exhaust */}
-      <rect x="58" y="50" width="22" height="4" rx="2" fill="#64748B" />
-    </svg>
-  );
+function ModalActions({ children }: { children: React.ReactNode }) {
+  return <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">{children}</div>;
 }
 
 export default function ProfilePage() {
@@ -155,38 +153,37 @@ export default function ProfilePage() {
   const router = useRouter();
   const qc = useQueryClient();
 
-  // Modals state
-  const [profileDialogOpen, setProfileDialogOpen] = useState(false);
-  const [phoneDialogOpen, setPhoneDialogOpen] = useState(false);
-  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
-  const [vehicleDialogOpen, setVehicleDialogOpen] = useState(false);
-  const [deleteConfirmVehicle, setDeleteConfirmVehicle] = useState<Vehicle | null>(null);
-  const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
-
-  // Edit vehicle state
+  const [nameOpen, setNameOpen] = useState(false);
+  const [phoneOpen, setPhoneOpen] = useState(false);
+  const [passwordOpen, setPasswordOpen] = useState(false);
+  const [vehicleOpen, setVehicleOpen] = useState(false);
+  const [logoutOpen, setLogoutOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Vehicle | null>(null);
   const [editVehicle, setEditVehicle] = useState<Vehicle | null>(null);
 
-  // Form states
   const [fullNameInput, setFullNameInput] = useState('');
+  const [nameError, setNameError] = useState<string | null>(null);
   const [phoneInput, setPhoneInput] = useState('');
+  const [phoneError, setPhoneError] = useState<string | null>(null);
 
-  // Password state
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordError, setPasswordError] = useState<{ field: 'new' | 'confirm' | 'form'; message: string } | null>(
+    null
+  );
   const [passwordLoading, setPasswordLoading] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
 
-  // Queries
-  const { data: profileData, isLoading: profileLoading } = useQuery<ProfileResponse>({
+  const profileQuery = useQuery<ProfileResponse>({
     queryKey: ['profile'],
     queryFn: () => fetcher<ProfileResponse>('/profile')
   });
 
-  const { data: vehicles = [], isLoading: vehiclesLoading } = useQuery<Vehicle[]>({
+  const vehiclesQuery = useQuery<Vehicle[]>({
     queryKey: ['vehicles'],
     queryFn: () => fetcher<Vehicle[]>('/vehicles')
   });
 
-  // Vehicle form
   const {
     register: registerVehicle,
     handleSubmit: handleVehicleSubmit,
@@ -196,7 +193,7 @@ export default function ProfilePage() {
     resolver: zodResolver(createVehicleSchema)
   });
 
-  // Profile update mutation
+  // PUT /profile menerima { full_name?, phone? }
   const updateProfileMutation = useMutation({
     mutationFn: (data: { full_name?: string; phone?: string }) =>
       fetcher('/profile', {
@@ -206,48 +203,60 @@ export default function ProfilePage() {
     onSuccess: () => {
       toast.success('Profil berhasil diperbarui');
       qc.invalidateQueries({ queryKey: ['profile'] });
-      setProfileDialogOpen(false);
-      setPhoneDialogOpen(false);
+      setNameOpen(false);
+      setPhoneOpen(false);
     },
-    onError: (e: Error) => {
-      toast.error(e.message || 'Gagal memperbarui profil');
-    }
+    onError: (e: Error) => toast.error(e.message || 'Gagal memperbarui profil')
   });
 
-  // Vehicle Save mutation
+  // POST /vehicles atau PUT /vehicles/[id] dengan payload createVehicleSchema
   const saveVehicleMutation = useMutation({
     mutationFn: (data: CreateVehicleInput) =>
       editVehicle
         ? fetcher(`/vehicles/${editVehicle.id}`, { method: 'PUT', body: JSON.stringify(data) })
         : fetcher('/vehicles', { method: 'POST', body: JSON.stringify(data) }),
     onSuccess: () => {
-      toast.success(editVehicle ? 'Kendaraan berhasil diperbarui' : 'Kendaraan berhasil ditambahkan');
+      toast.success(editVehicle ? 'Data kendaraan diperbarui' : 'Kendaraan ditambahkan');
       qc.invalidateQueries({ queryKey: ['vehicles'] });
-      setVehicleDialogOpen(false);
+      setVehicleOpen(false);
     },
     onError: (e: Error) => toast.error(e.message || 'Gagal menyimpan kendaraan')
   });
 
-  // Vehicle Delete mutation
   const deleteVehicleMutation = useMutation({
     mutationFn: (id: string) => fetcher(`/vehicles/${id}`, { method: 'DELETE' }),
     onSuccess: () => {
-      toast.success('Kendaraan berhasil dihapus');
+      toast.success('Kendaraan dihapus');
       qc.invalidateQueries({ queryKey: ['vehicles'] });
-      setDeleteConfirmVehicle(null);
+      setDeleteTarget(null);
     },
     onError: (e: Error) => toast.error(e.message || 'Gagal menghapus kendaraan')
   });
 
-  // Modal Openers
+  const profile = profileQuery.data?.profile;
+  const stats = profileQuery.data?.stats;
+  const fullName = profile?.full_name || user?.user_metadata?.full_name || 'Pelanggan';
+  const email = profile?.email || user?.email || '';
+  const phone = profile?.phone || user?.user_metadata?.phone || '';
+  const vehicles = vehiclesQuery.data ?? [];
+
   function openEditName() {
-    setFullNameInput(profileData?.profile?.full_name || user?.user_metadata?.full_name || '');
-    setProfileDialogOpen(true);
+    setFullNameInput(fullName === 'Pelanggan' ? '' : fullName);
+    setNameError(null);
+    setNameOpen(true);
   }
 
   function openEditPhone() {
-    setPhoneInput(profileData?.profile?.phone || user?.user_metadata?.phone || '');
-    setPhoneDialogOpen(true);
+    setPhoneInput(phone);
+    setPhoneError(null);
+    setPhoneOpen(true);
+  }
+
+  function openPassword() {
+    setNewPassword('');
+    setConfirmPassword('');
+    setPasswordError(null);
+    setPasswordOpen(true);
   }
 
   function openAddVehicle() {
@@ -260,7 +269,7 @@ export default function ProfilePage() {
       vehicle_type: 'mobil',
       last_odometer_km: 0
     });
-    setVehicleDialogOpen(true);
+    setVehicleOpen(true);
   }
 
   function openEditVehicle(v: Vehicle) {
@@ -273,792 +282,682 @@ export default function ProfilePage() {
       vehicle_type: v.vehicle_type,
       last_odometer_km: v.last_odometer_km
     });
-    setVehicleDialogOpen(true);
+    setVehicleOpen(true);
+  }
+
+  function submitName(e: React.FormEvent) {
+    e.preventDefault();
+    const value = fullNameInput.trim();
+    if (value.length < 2) {
+      setNameError('Nama lengkap minimal 2 karakter.');
+      return;
+    }
+    setNameError(null);
+    updateProfileMutation.mutate({ full_name: value });
+  }
+
+  function submitPhone(e: React.FormEvent) {
+    e.preventDefault();
+    const value = phoneInput.trim();
+    if (value.length < 8) {
+      setPhoneError('Nomor HP minimal 8 digit.');
+      return;
+    }
+    setPhoneError(null);
+    updateProfileMutation.mutate({ phone: value });
   }
 
   async function handleChangePassword(e: React.FormEvent) {
     e.preventDefault();
     if (newPassword.length < 6) {
-      toast.error('Password baru minimal 6 karakter');
+      setPasswordError({ field: 'new', message: 'Password baru minimal 6 karakter.' });
       return;
     }
     if (newPassword !== confirmPassword) {
-      toast.error('Konfirmasi password tidak cocok');
+      setPasswordError({ field: 'confirm', message: 'Konfirmasi password belum sama.' });
       return;
     }
-
+    setPasswordError(null);
     try {
       setPasswordLoading(true);
-      const { error } = await supabase.auth.updateUser({
-        password: newPassword
-      });
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
       if (error) throw error;
-
       toast.success('Password berhasil diperbarui');
-      setPasswordDialogOpen(false);
+      setPasswordOpen(false);
       setNewPassword('');
       setConfirmPassword('');
     } catch (err: any) {
-      toast.error(err.message || 'Gagal mengubah password');
+      setPasswordError({ field: 'form', message: err?.message || 'Gagal mengubah password' });
     } finally {
       setPasswordLoading(false);
     }
   }
 
   async function handleLogout() {
+    setLoggingOut(true);
     try {
       await supabase.auth.signOut();
-      toast.success('Berhasil keluar dari akun');
-      router.replace('/login');
-    } catch {
+      toast.success('Kamu sudah keluar dari akun');
+    } finally {
       router.replace('/login');
     }
   }
 
-  const currentFullName = profileData?.profile?.full_name || user?.user_metadata?.full_name || 'Pelanggan';
-  const currentEmail = profileData?.profile?.email || user?.email || '-';
-  const currentPhone = profileData?.profile?.phone || user?.user_metadata?.phone || null;
-  const initialLetter = (currentFullName || currentEmail || 'U')[0]?.toUpperCase();
-
-  const stats = profileData?.stats ?? {
-    total_bookings: 0,
-    total_spent: 0,
-    last_service_date: null
-  };
-
   return (
-    <div className="w-full space-y-7 pb-16">
-      {/* ─────────────────────────────────────────────────────────────
-          TOP ROW: 2 Cards Side-by-Side (Data Diri & Ringkasan Servis)
-          ───────────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-6">
-        {/* Card 1: Data Diri / Info Akun */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 p-6 flex flex-col justify-between shadow-2xs">
-          <div>
-            {/* Top row: Avatar + Name & Info + Edit Name Button */}
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex items-start gap-4">
-                {/* Avatar (Initial letter, rounded circle light blue) */}
-                <div
-                  aria-label={`Avatar ${currentFullName}`}
-                  className="h-16 w-16 rounded-full bg-blue-100 dark:bg-blue-950/80 text-blue-600 dark:text-blue-400 font-bold text-2xl flex items-center justify-center shrink-0 select-none shadow-xs"
-                >
-                  {initialLetter}
-                </div>
-
-                {/* Name, Badge, Email, Phone */}
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white leading-tight">
-                      {currentFullName}
-                    </h2>
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 dark:bg-blue-950/70 text-blue-600 dark:text-blue-300">
-                      Pengguna
-                    </span>
-                  </div>
-
-                  {/* Email row */}
-                  <div className="pt-0.5">
-                    <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-600 dark:text-slate-300">
-                      <Mail className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                      <span className="truncate">{currentEmail}</span>
-                    </div>
-                    <p className="text-[11px] text-slate-400 dark:text-slate-500 pl-5.5 mt-0.5">
-                      Email tidak dapat diubah
-                    </p>
-                  </div>
-
-                  {/* Phone row */}
-                  <div className="pt-1">
-                    <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-700 dark:text-slate-200 font-data">
-                      <Phone className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                      <span>{currentPhone || <span className="text-slate-400 italic font-sans font-normal">Belum diatur</span>}</span>
-                    </div>
-
-                    {/* Ubah Nomor HP Button */}
-                    <button
-                      type="button"
-                      onClick={openEditPhone}
-                      className="mt-2.5 ml-5.5 inline-flex items-center gap-1.5 px-3 py-1 rounded-lg border border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 text-xs font-medium transition"
-                    >
-                      <Pencil className="h-3 w-3" />
-                      <span>Ubah Nomor HP</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Edit Name Button (top right) */}
-              <button
-                type="button"
-                onClick={openEditName}
-                className="inline-flex items-center gap-1 text-xs sm:text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 hover:underline shrink-0"
-              >
-                <Pencil className="h-3.5 w-3.5" />
-                <span>Edit</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Bottom Bar: Ubah Password */}
-          <button
-            type="button"
-            onClick={() => setPasswordDialogOpen(true)}
-            className="mt-6 w-full flex items-center justify-between px-4 py-3 rounded-xl bg-blue-50/70 hover:bg-blue-100/70 dark:bg-blue-950/40 dark:hover:bg-blue-900/40 border border-blue-100 dark:border-blue-900/50 text-blue-600 dark:text-blue-400 transition cursor-pointer"
-          >
-            <div className="flex items-center gap-2 font-medium text-xs sm:text-sm">
-              <Lock className="h-4 w-4" />
-              <span>Ubah Password</span>
-            </div>
-            <ChevronRight className="h-4 w-4" />
-          </button>
-        </div>
-
-        {/* Card 2: Ringkasan Servis */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 p-6 flex flex-col justify-between shadow-2xs relative overflow-hidden">
-          {/* Faint subtle watermark car illustration in top right */}
-          <div className="absolute right-3 -top-1 pointer-events-none opacity-[0.08] dark:opacity-[0.05] text-blue-600">
-            <svg width="130" height="90" viewBox="0 0 120 70" fill="currentColor">
-              <path d="M10 44C10 40 14 36 22 35L36 33L48 18C52 14 58 13 65 13H86C93 13 99 17 103 23L111 36C116 38 118 41 118 45V51C118 53 116 55 114 55H108C108 50 103 46 97 46C91 46 86 50 86 55H44C44 50 39 46 33 46C27 46 22 50 22 55H14C11.8 55 10 53.2 10 51V44Z" />
-              <path d="M5 25L25 25" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-              <path d="M0 32L18 32" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
-            </svg>
-          </div>
-
-          <div>
-            {/* Title */}
-            <h2 className="text-base font-bold text-slate-900 dark:text-white">
-              Ringkasan Servis
-            </h2>
-
-            {/* 3 Stats Side-by-Side */}
-            <div className="grid grid-cols-3 gap-2 sm:gap-4 py-6">
-              {/* Stat 1: Total Booking */}
-              <div>
-                <div className="h-10 w-10 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-2.5">
-                  <CalendarCheck className="h-5 w-5" />
-                </div>
-                <p className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white font-data">
-                  {profileLoading ? '...' : stats.total_bookings}
-                </p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  Total Booking
-                </p>
-              </div>
-
-              {/* Stat 2: Total Pengeluaran */}
-              <div>
-                <div className="h-10 w-10 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-2.5">
-                  <Wallet className="h-5 w-5" />
-                </div>
-                <p className="text-sm sm:text-base font-bold text-slate-900 dark:text-white font-data truncate" title={formatRp(stats.total_spent)}>
-                  {profileLoading ? '...' : formatRp(stats.total_spent)}
-                </p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  Total Pengeluaran
-                </p>
-              </div>
-
-              {/* Stat 3: Terakhir Servis */}
-              <div>
-                <div className="h-10 w-10 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-2.5">
-                  <Clock className="h-5 w-5" />
-                </div>
-                <p className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate" title={formatDate(stats.last_service_date)}>
-                  {profileLoading ? '...' : formatDate(stats.last_service_date)}
-                </p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  Terakhir Servis
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Bottom link: Lihat riwayat lengkap */}
-          <div className="border-t border-slate-100 dark:border-slate-800/80 pt-4">
-            <Link
-              href="/bookings"
-              className="text-xs sm:text-sm font-semibold text-blue-600 hover:text-blue-700 dark:text-blue-400 flex items-center gap-1.5 transition"
-            >
-              <span>Lihat riwayat lengkap</span>
-              <ArrowRight className="h-3.5 w-3.5" />
-            </Link>
-          </div>
-        </div>
-      </div>
-
-      {/* ─────────────────────────────────────────────────────────────
-          BOTTOM ROW: Kendaraan Saya (Section)
-          ───────────────────────────────────────────────────────────── */}
-      <section aria-labelledby="kendaraan-heading" className="space-y-4 pt-2">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <h2 id="kendaraan-heading" className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
-              Kendaraan Saya
-            </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Kelola kendaraan Anda untuk memudahkan proses booking servis.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={openAddVehicle}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-sm shadow-blue-500/20 active:scale-95 transition self-start sm:self-auto"
-          >
-            <Plus className="h-4 w-4" />
-            <span>Tambah Kendaraan</span>
-          </button>
-        </div>
-
-        {/* Vehicles Grid */}
-        {vehiclesLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {[1, 2].map((i) => (
-              <div key={i} className="h-56 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 animate-pulse p-6" />
-            ))}
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {/* List of Vehicles */}
-            {vehicles.map((v, index) => {
-              const isFirst = index === 0;
-              const isMotor = v.vehicle_type === 'motor';
-
-              return (
-                <div
-                  key={v.id}
-                  className={`bg-white dark:bg-slate-900 rounded-2xl p-5 relative flex flex-col justify-between transition ${
-                    isFirst
-                      ? 'border-2 border-blue-500 dark:border-blue-500 shadow-xs'
-                      : 'border border-slate-200/90 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
-                  }`}
-                >
-                  {/* Top-right check badge on active/primary vehicle */}
-                  {isFirst && (
-                    <div
-                      title="Kendaraan Utama"
-                      className="absolute -top-2.5 -right-2.5 h-6 w-6 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-xs"
-                    >
-                      <Check className="h-3.5 w-3.5 stroke-[3]" />
-                    </div>
-                  )}
-
-                  {/* Top: Thumbnail & Details */}
-                  <div className="flex items-start gap-3.5">
-                    {/* Vehicle Vector Graphic Container */}
-                    <div className="w-20 h-20 sm:w-24 sm:h-20 rounded-xl bg-slate-50/90 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-800 flex items-center justify-center p-1.5 shrink-0">
-                      {isMotor ? <MotorVector /> : <CarVector />}
-                    </div>
-
-                    {/* Details */}
-                    <div className="min-w-0 flex-1 space-y-1">
-                      {/* Brand & Model + Utama badge */}
-                      <div className="flex items-start justify-between gap-1">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <h3 className="font-bold text-sm sm:text-base text-slate-900 dark:text-white leading-tight truncate">
-                            {v.brand} {v.model}
-                          </h3>
-                          {isFirst && (
-                            <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold bg-blue-50 dark:bg-blue-950/70 text-blue-600 dark:text-blue-300 px-2 py-0.5 rounded-full">
-                              Utama
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="text-slate-400">
-                          <MoreVertical className="h-4 w-4" />
-                        </div>
-                      </div>
-
-                      {/* Plate Number */}
-                      <p className="font-mono text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium">
-                        {v.plate_number}
-                      </p>
-
-                      {/* Year & Fuel */}
-                      <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400 pt-0.5">
-                        <span className="inline-flex items-center gap-1">
-                          <Calendar className="h-3 w-3 text-slate-400" />
-                          {v.year}
-                        </span>
-                        <span className="inline-flex items-center gap-1">
-                          <Fuel className="h-3 w-3 text-slate-400" />
-                          Bensin
-                        </span>
-                      </div>
-
-                      {/* Odometer */}
-                      <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
-                        <Gauge className="h-3 w-3 text-slate-400" />
-                        <span>{v.last_odometer_km.toLocaleString('id-ID')} km</span>
-                      </div>
-
-                      {/* Service Status Badge */}
-                      <div className="pt-1">
-                        {v.last_service_date ? (
-                          <span className="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200/50">
-                            Terakhir servis: {formatDate(v.last_service_date)}
-                          </span>
-                        ) : (
-                          <span className="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
-                            Belum pernah servis
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Bottom: Edit & Hapus Buttons */}
-                  <div className="border-t border-slate-100 dark:border-slate-800/80 pt-3 mt-4 flex items-center justify-between">
-                    <button
-                      type="button"
-                      onClick={() => openEditVehicle(v)}
-                      className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                      <span>Edit</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setDeleteConfirmVehicle(v)}
-                      className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                      <span>Hapus</span>
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-
-            {/* Dashed "Tambah Kendaraan" Card */}
-            <div
-              onClick={openAddVehicle}
-              className="border-2 border-dashed border-blue-200 dark:border-blue-900/60 bg-blue-50/20 dark:bg-blue-950/20 hover:bg-blue-50/50 dark:hover:bg-blue-900/30 rounded-2xl p-6 flex flex-col items-center justify-center text-center gap-2.5 transition min-h-[220px] cursor-pointer group"
-            >
-              <div className="h-12 w-12 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center group-hover:scale-105 transition-transform">
-                <CarIcon className="h-6 w-6" />
-              </div>
-              <p className="font-bold text-sm text-slate-900 dark:text-white">
-                Tambah Kendaraan
-              </p>
-              <p className="text-xs text-slate-500 dark:text-slate-400 max-w-[200px]">
-                Daftar kendaraan lain untuk memudahkan booking.
-              </p>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  openAddVehicle();
-                }}
-                className="mt-1 w-full py-2 px-4 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300 text-xs font-semibold transition"
-              >
-                + Tambah Kendaraan
-              </button>
-            </div>
-          </div>
-        )}
-      </section>
-
-      {/* ─────────────────────────────────────────────────────────────
-          SECTION: Keluar Akun
-          ───────────────────────────────────────────────────────────── */}
-      <div className="pt-4 border-t border-slate-200/80 dark:border-slate-800 flex items-center justify-between">
-        <p className="text-xs text-slate-400 dark:text-slate-500">
-          Masuk sebagai <strong className="font-medium text-slate-700 dark:text-slate-300">{currentEmail}</strong>
+    <div className="space-y-8 sm:space-y-10">
+      <div className="max-w-2xl space-y-3">
+        <h1 className="text-[30px] font-extrabold leading-[1.1] tracking-[-0.015em] text-slate-900 dark:text-white sm:text-[40px]">
+          Profil
+        </h1>
+        <p className="text-[17px] leading-relaxed text-slate-600 dark:text-slate-400">
+          Data akun dan kendaraan yang kamu pakai untuk booking servis.
         </p>
-        <button
-          type="button"
-          onClick={() => setLogoutDialogOpen(true)}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-200 dark:border-red-900/60 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 text-xs font-semibold transition"
-        >
-          <LogOut className="h-3.5 w-3.5" />
-          <span>Keluar Akun</span>
-        </button>
       </div>
 
-      {/* ─────────────────────────────────────────────────────────────
-          MODAL 1: Edit Nama Lengkap
-          ───────────────────────────────────────────────────────────── */}
-      <Dialog open={profileDialogOpen} onOpenChange={setProfileDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Edit Nama Lengkap</DialogTitle>
-          </DialogHeader>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (!fullNameInput.trim()) {
-                toast.error('Nama lengkap tidak boleh kosong');
-                return;
-              }
-              updateProfileMutation.mutate({
-                full_name: fullNameInput.trim()
-              });
-            }}
-            className="space-y-4 py-2"
-          >
-            <div className="space-y-1">
-              <label htmlFor="edit_full_name" className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                Nama Lengkap
-              </label>
-              <input
-                id="edit_full_name"
-                type="text"
-                value={fullNameInput}
-                onChange={(e) => setFullNameInput(e.target.value)}
-                placeholder="Masukkan nama lengkap Anda"
-                required
-                className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3.5 py-2.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
-              />
+      <div className="grid gap-8 lg:grid-cols-3 lg:gap-6">
+        {/* Kolom akun */}
+        <section aria-labelledby="akun-heading" className="space-y-4 lg:col-span-1">
+          <h2 id="akun-heading" className="sr-only">
+            Akun
+          </h2>
+
+          {profileQuery.isLoading ? (
+            <div
+              className="space-y-4 rounded-[20px] border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900"
+              aria-busy
+              aria-label="Memuat profil"
+            >
+              <div className="flex items-center gap-3">
+                <SkeletonBlock className="h-14 w-14 shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <SkeletonBlock className="h-5 w-2/3" />
+                  <SkeletonBlock className="h-4 w-full" />
+                </div>
+              </div>
+              <SkeletonBlock className="h-11 w-full" />
+              <SkeletonBlock className="h-11 w-full" />
             </div>
+          ) : profileQuery.isError ? (
+            <ErrorState
+              title="Profil belum bisa dimuat"
+              message={(profileQuery.error as Error)?.message}
+              onRetry={() => profileQuery.refetch()}
+            />
+          ) : (
+            <>
+              <div className="rounded-[20px] border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
+                <div className="flex items-center gap-3.5">
+                  <span
+                    aria-hidden
+                    className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-primary-100 text-lg font-bold text-primary-700 dark:bg-primary-900 dark:text-primary-100"
+                  >
+                    {initials(fullName)}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-xl font-extrabold leading-tight tracking-[-0.01em] text-slate-900 dark:text-white break-words">
+                      {fullName}
+                    </p>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">Akun pelanggan</p>
+                  </div>
+                </div>
 
-            <DialogFooter className="pt-2">
-              <button
-                type="button"
-                onClick={() => setProfileDialogOpen(false)}
-                className="px-4 py-2 rounded-xl text-sm font-medium border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
-              >
-                Batal
-              </button>
-              <button
-                type="submit"
-                disabled={updateProfileMutation.isPending}
-                className="px-4 py-2 rounded-xl text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-sm shadow-blue-500/20 transition disabled:opacity-50"
-              >
-                {updateProfileMutation.isPending ? 'Menyimpan...' : 'Simpan'}
-              </button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+                <dl className="mt-5 divide-y divide-slate-200 border-y border-slate-200 dark:divide-slate-800 dark:border-slate-800">
+                  <div className="flex items-start gap-3 py-3">
+                    <Mail className="mt-0.5 h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" aria-hidden />
+                    <div className="min-w-0 flex-1">
+                      <dt className="text-[13px] text-slate-600 dark:text-slate-400">Email (tidak bisa diubah)</dt>
+                      <dd className="text-[15px] text-slate-900 dark:text-white break-all">{email || '-'}</dd>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3 py-3">
+                    <Phone className="mt-0.5 h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" aria-hidden />
+                    <div className="min-w-0 flex-1">
+                      <dt className="text-[13px] text-slate-600 dark:text-slate-400">No. HP (WhatsApp)</dt>
+                      <dd className="text-[15px] text-slate-900 dark:text-white">
+                        {phone || <span className="text-slate-600 dark:text-slate-400">Belum diisi</span>}
+                      </dd>
+                    </div>
+                  </div>
+                </dl>
 
-      {/* ─────────────────────────────────────────────────────────────
-          MODAL 2: Ubah Nomor HP
-          ───────────────────────────────────────────────────────────── */}
-      <Dialog open={phoneDialogOpen} onOpenChange={setPhoneDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Ubah Nomor WhatsApp / HP</DialogTitle>
-          </DialogHeader>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (phoneInput.trim().length > 0 && phoneInput.trim().length < 8) {
-                toast.error('Nomor HP minimal 8 digit');
-                return;
-              }
-              updateProfileMutation.mutate({
-                phone: phoneInput.trim()
-              });
-            }}
-            className="space-y-4 py-2"
+                <div className="mt-4 grid gap-2">
+                  <button type="button" onClick={openEditName} className={btnSecondary}>
+                    <Pencil className="h-4 w-4" aria-hidden />
+                    Ubah nama
+                  </button>
+                  <button type="button" onClick={openEditPhone} className={btnSecondary}>
+                    <Phone className="h-4 w-4" aria-hidden />
+                    {phone ? 'Ubah no. HP' : 'Isi no. HP'}
+                  </button>
+                  <button type="button" onClick={openPassword} className={btnSecondary}>
+                    <Lock className="h-4 w-4" aria-hidden />
+                    Ubah password
+                  </button>
+                </div>
+              </div>
+
+              {stats && (
+                <div className="rounded-[20px] bg-slate-900 p-6 text-white dark:bg-slate-950 dark:ring-1 dark:ring-slate-800">
+                  <h3 className="text-[15px] font-bold text-blue-300">Ringkasan servis</h3>
+                  <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-5">
+                    <div>
+                      <dt className="text-[13px] text-slate-300">Booking (tanpa yang batal)</dt>
+                      <dd className="mt-0.5 text-[32px] font-extrabold leading-none tracking-[-0.015em]">
+                        {stats.total_bookings}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-[13px] text-slate-300">Servis terakhir</dt>
+                      <dd className="mt-1.5 text-[17px] font-bold">
+                        {stats.last_service_date
+                          ? formatDate(stats.last_service_date, { day: 'numeric', month: 'short', year: 'numeric' })
+                          : 'Belum ada'}
+                      </dd>
+                    </div>
+                    <div className="col-span-2 border-t border-slate-700 pt-4">
+                      <dt className="text-[13px] text-slate-300">Biaya servis selesai (estimasi)</dt>
+                      <dd className="mt-0.5 text-[26px] font-extrabold tracking-[-0.015em]">{formatRp(stats.total_spent)}</dd>
+                    </div>
+                  </dl>
+                  <Link
+                    href="/bookings"
+                    className="mt-4 inline-flex min-h-[44px] w-full items-center justify-center rounded-ctl border border-slate-600 px-4 text-[15px] font-semibold text-white transition-colors hover:bg-slate-800"
+                  >
+                    Lihat riwayat booking
+                  </Link>
+                </div>
+              )}
+            </>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setLogoutOpen(true)}
+            className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-ctl border border-red-300 bg-white px-4 text-sm font-semibold text-red-700 hover:bg-red-50 dark:border-red-800 dark:bg-slate-900 dark:text-red-300 dark:hover:bg-red-950/40 transition-colors"
           >
+            <LogOut className="h-4 w-4" aria-hidden />
+            Keluar dari akun
+          </button>
+        </section>
+
+        {/* Fokus halaman: kendaraan saya */}
+        <section aria-labelledby="kendaraan-heading" className="order-first space-y-5 lg:order-none lg:col-span-2">
+          <div className="flex flex-wrap items-end justify-between gap-3">
             <div className="space-y-1">
-              <label htmlFor="edit_phone" className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                Nomor Telepon / WhatsApp
-              </label>
-              <input
-                id="edit_phone"
-                type="tel"
-                value={phoneInput}
-                onChange={(e) => setPhoneInput(e.target.value)}
-                placeholder="Contoh: 081234567890"
-                className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3.5 py-2.5 text-sm font-data text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
-              />
-              <p className="text-[11px] text-slate-400">
-                Digunakan untuk konfirmasi dan update status servis via WhatsApp / SMS.
+              <h2
+                id="kendaraan-heading"
+                className="text-[24px] font-extrabold tracking-[-0.01em] text-slate-900 dark:text-white sm:text-[28px]"
+              >
+                Kendaraan saya
+              </h2>
+              <p className="text-[15px] text-slate-600 dark:text-slate-400">
+                Kendaraan di sini bisa langsung dipilih saat booking.
               </p>
             </div>
-
-            <DialogFooter className="pt-2">
-              <button
-                type="button"
-                onClick={() => setPhoneDialogOpen(false)}
-                className="px-4 py-2 rounded-xl text-sm font-medium border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
-              >
-                Batal
+            {vehicles.length > 0 && (
+              <button type="button" onClick={openAddVehicle} className={btnPrimary}>
+                <Plus className="h-4 w-4" aria-hidden />
+                Tambah kendaraan
               </button>
-              <button
-                type="submit"
-                disabled={updateProfileMutation.isPending}
-                className="px-4 py-2 rounded-xl text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-sm shadow-blue-500/20 transition disabled:opacity-50"
-              >
-                {updateProfileMutation.isPending ? 'Menyimpan...' : 'Simpan'}
-              </button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+            )}
+          </div>
 
-      {/* ─────────────────────────────────────────────────────────────
-          MODAL 3: Ubah Password
-          ───────────────────────────────────────────────────────────── */}
-      <Dialog open={passwordDialogOpen} onOpenChange={setPasswordDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Ubah Password</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleChangePassword} className="space-y-4 py-2">
-            <div className="space-y-1">
-              <label htmlFor="new_password" className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                Password Baru
-              </label>
-              <input
-                id="new_password"
-                type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="Minimal 6 karakter"
-                required
-                className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3.5 py-2.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
-              />
+          {vehiclesQuery.isLoading && (
+            <div className="grid gap-4 sm:grid-cols-2" aria-busy aria-label="Memuat kendaraan">
+              {[0, 1].map((i) => (
+                <div
+                  key={i}
+                  className="space-y-3 rounded-[20px] border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900"
+                >
+                  <SkeletonBlock className="h-8 w-32" />
+                  <SkeletonBlock className="h-5 w-2/3" />
+                  <SkeletonBlock className="h-4 w-1/2" />
+                  <SkeletonBlock className="h-11 w-full" />
+                </div>
+              ))}
             </div>
+          )}
 
-            <div className="space-y-1">
-              <label htmlFor="confirm_password" className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                Konfirmasi Password Baru
-              </label>
-              <input
-                id="confirm_password"
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Ulangi password baru Anda"
-                required
-                className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3.5 py-2.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
-              />
+          {vehiclesQuery.isError && (
+            <ErrorState
+              title="Daftar kendaraan belum bisa dimuat"
+              message={(vehiclesQuery.error as Error)?.message}
+              onRetry={() => vehiclesQuery.refetch()}
+            />
+          )}
+
+          {!vehiclesQuery.isLoading && !vehiclesQuery.isError && vehicles.length === 0 && (
+            <EmptyState
+              icon={Car}
+              title="Belum ada kendaraan"
+              description="Tambahkan mobil atau motor kamu supaya booking berikutnya tinggal pilih."
+              action={{ label: 'Tambah kendaraan', onClick: openAddVehicle }}
+            />
+          )}
+
+          {!vehiclesQuery.isLoading && !vehiclesQuery.isError && vehicles.length > 0 && (
+            <ul className="grid gap-4 sm:grid-cols-2">
+              {vehicles.map((v) => {
+                const TypeIcon = v.vehicle_type === 'motor' ? Bike : Car;
+                return (
+                  <li
+                    key={v.id}
+                    className="flex flex-col rounded-[20px] border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900"
+                  >
+                    <div className="flex-1 space-y-4 p-6">
+                      <div className="flex items-start justify-between gap-3">
+                        <Plate number={v.plate_number} size="lg" />
+                        <span className="inline-flex items-center gap-1.5 text-[13px] text-slate-600 dark:text-slate-400">
+                          <TypeIcon className="h-4 w-4" aria-hidden />
+                          {v.vehicle_type === 'motor' ? 'Motor' : 'Mobil'}
+                        </span>
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-extrabold tracking-[-0.01em] text-slate-900 dark:text-white break-words">
+                          {v.brand} {v.model}
+                        </h3>
+                        <p className="text-[15px] text-slate-600 dark:text-slate-400">Tahun {v.year}</p>
+                      </div>
+                      <dl className="grid grid-cols-2 gap-3 text-sm">
+                        <div>
+                          <dt className="flex items-center gap-1.5 text-[13px] text-slate-600 dark:text-slate-400">
+                            <Gauge className="h-3.5 w-3.5" aria-hidden />
+                            Odometer
+                          </dt>
+                          <dd className="text-[15px] font-bold text-slate-900 dark:text-white">
+                            {(v.last_odometer_km ?? 0).toLocaleString('id-ID')} km
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="flex items-center gap-1.5 text-[13px] text-slate-600 dark:text-slate-400">
+                            <Wrench className="h-3.5 w-3.5" aria-hidden />
+                            Servis terakhir
+                          </dt>
+                          <dd className="text-[15px] font-bold text-slate-900 dark:text-white">
+                            {v.last_service_date
+                              ? formatDate(v.last_service_date, { day: 'numeric', month: 'short', year: 'numeric' })
+                              : 'Belum ada'}
+                          </dd>
+                        </div>
+                      </dl>
+                      <div className="rounded-2xl bg-slate-50 p-4 dark:bg-slate-800/60">
+                        <MaintenanceList vehicleId={v.id} />
+                      </div>
+                      <Link
+                        href={`/booking/new?vehicle_id=${v.id}`}
+                        className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-ctl border border-primary-600 px-4 text-[15px] font-semibold text-primary-700 transition-colors hover:bg-primary-50 dark:border-primary-500 dark:text-primary-100 dark:hover:bg-primary-900/40"
+                      >
+                        <CalendarPlus className="h-4 w-4" aria-hidden />
+                        Booking servis untuk {v.plate_number}
+                      </Link>
+                    </div>
+                    <div className="grid grid-cols-2 border-t border-slate-200 dark:border-slate-800">
+                      <button
+                        type="button"
+                        onClick={() => openEditVehicle(v)}
+                        aria-label={`Ubah data kendaraan ${v.plate_number}`}
+                        className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-bl-[20px] text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800 transition-colors"
+                      >
+                        <Pencil className="h-4 w-4" aria-hidden />
+                        Ubah
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDeleteTarget(v)}
+                        aria-label={`Hapus kendaraan ${v.plate_number}`}
+                        className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-br-[20px] border-l border-slate-200 text-sm font-semibold text-red-700 hover:bg-red-50 dark:border-slate-800 dark:text-red-300 dark:hover:bg-red-950/40 transition-colors"
+                      >
+                        <Trash2 className="h-4 w-4" aria-hidden />
+                        Hapus
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+      </div>
+
+      {/* Dialog: ubah nama */}
+      <Modal open={nameOpen} onClose={() => setNameOpen(false)} title="Ubah nama">
+        <form onSubmit={submitName} noValidate className="space-y-4">
+          <div className="space-y-1.5">
+            <label htmlFor="edit_full_name" className={labelClass}>
+              Nama lengkap
+            </label>
+            <input
+              id="edit_full_name"
+              type="text"
+              autoComplete="name"
+              value={fullNameInput}
+              onChange={(e) => setFullNameInput(e.target.value)}
+              aria-invalid={nameError ? true : undefined}
+              aria-describedby={nameError ? 'edit_full_name-error' : undefined}
+              className={clsx(inputClass, borderFor(nameError))}
+            />
+            {nameError && (
+              <p id="edit_full_name-error" className={errorTextClass}>
+                {nameError}
+              </p>
+            )}
+          </div>
+          <ModalActions>
+            <button type="button" onClick={() => setNameOpen(false)} className={btnSecondary}>
+              Batal
+            </button>
+            <button type="submit" disabled={updateProfileMutation.isPending} className={btnPrimary}>
+              {updateProfileMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
+              {updateProfileMutation.isPending ? 'Menyimpan...' : 'Simpan nama'}
+            </button>
+          </ModalActions>
+        </form>
+      </Modal>
+
+      {/* Dialog: ubah no. HP */}
+      <Modal
+        open={phoneOpen}
+        onClose={() => setPhoneOpen(false)}
+        title={phone ? 'Ubah no. HP' : 'Isi no. HP'}
+        description="Dipakai bengkel untuk konfirmasi booking dan kabar status servis."
+      >
+        <form onSubmit={submitPhone} noValidate className="space-y-4">
+          <div className="space-y-1.5">
+            <label htmlFor="edit_phone" className={labelClass}>
+              No. HP (WhatsApp)
+            </label>
+            <input
+              id="edit_phone"
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
+              value={phoneInput}
+              onChange={(e) => setPhoneInput(e.target.value)}
+              placeholder="08xxxxxxxxxx"
+              aria-invalid={phoneError ? true : undefined}
+              aria-describedby={phoneError ? 'edit_phone-error' : undefined}
+              className={clsx(inputClass, borderFor(phoneError))}
+            />
+            {phoneError && (
+              <p id="edit_phone-error" className={errorTextClass}>
+                {phoneError}
+              </p>
+            )}
+          </div>
+          <ModalActions>
+            <button type="button" onClick={() => setPhoneOpen(false)} className={btnSecondary}>
+              Batal
+            </button>
+            <button type="submit" disabled={updateProfileMutation.isPending} className={btnPrimary}>
+              {updateProfileMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
+              {updateProfileMutation.isPending ? 'Menyimpan...' : 'Simpan no. HP'}
+            </button>
+          </ModalActions>
+        </form>
+      </Modal>
+
+      {/* Dialog: ubah password (Supabase auth.updateUser) */}
+      <Modal open={passwordOpen} onClose={() => setPasswordOpen(false)} title="Ubah password">
+        <form onSubmit={handleChangePassword} noValidate className="space-y-4">
+          {passwordError?.field === 'form' && (
+            <p role="alert" className="rounded-ctl border border-red-200 bg-red-50 px-3.5 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
+              {passwordError.message}
+            </p>
+          )}
+          <div className="space-y-1.5">
+            <label htmlFor="new_password" className={labelClass}>
+              Password baru
+            </label>
+            <input
+              id="new_password"
+              type="password"
+              autoComplete="new-password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              aria-invalid={passwordError?.field === 'new' ? true : undefined}
+              aria-describedby="new_password-msg"
+              className={clsx(inputClass, borderFor(passwordError?.field === 'new'))}
+            />
+            {passwordError?.field === 'new' ? (
+              <p id="new_password-msg" className={errorTextClass}>
+                {passwordError.message}
+              </p>
+            ) : (
+              <p id="new_password-msg" className="text-[13px] text-slate-600 dark:text-slate-400">
+                Minimal 6 karakter.
+              </p>
+            )}
+          </div>
+          <div className="space-y-1.5">
+            <label htmlFor="confirm_password" className={labelClass}>
+              Ulangi password baru
+            </label>
+            <input
+              id="confirm_password"
+              type="password"
+              autoComplete="new-password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              aria-invalid={passwordError?.field === 'confirm' ? true : undefined}
+              aria-describedby={passwordError?.field === 'confirm' ? 'confirm_password-error' : undefined}
+              className={clsx(inputClass, borderFor(passwordError?.field === 'confirm'))}
+            />
+            {passwordError?.field === 'confirm' && (
+              <p id="confirm_password-error" className={errorTextClass}>
+                {passwordError.message}
+              </p>
+            )}
+          </div>
+          <ModalActions>
+            <button type="button" onClick={() => setPasswordOpen(false)} className={btnSecondary}>
+              Batal
+            </button>
+            <button type="submit" disabled={passwordLoading} className={btnPrimary}>
+              {passwordLoading && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
+              {passwordLoading ? 'Menyimpan...' : 'Simpan password'}
+            </button>
+          </ModalActions>
+        </form>
+      </Modal>
+
+      {/* Dialog: tambah / ubah kendaraan */}
+      <Modal
+        open={vehicleOpen}
+        onClose={() => setVehicleOpen(false)}
+        title={editVehicle ? 'Ubah data kendaraan' : 'Tambah kendaraan'}
+      >
+        <form
+          onSubmit={handleVehicleSubmit((d) => saveVehicleMutation.mutate(d))}
+          noValidate
+          className="space-y-4"
+        >
+          <div className="space-y-1.5">
+            <label htmlFor="plate_number" className={labelClass}>
+              Nomor polisi
+            </label>
+            <input
+              id="plate_number"
+              autoComplete="off"
+              autoCapitalize="characters"
+              placeholder="B 1234 XYZ"
+              aria-invalid={vehicleErrors.plate_number ? true : undefined}
+              aria-describedby={vehicleErrors.plate_number ? 'plate_number-error' : undefined}
+              {...registerVehicle('plate_number')}
+              className={clsx(inputClass, 'font-mono uppercase placeholder:font-sans placeholder:normal-case', borderFor(vehicleErrors.plate_number))}
+            />
+            {vehicleErrors.plate_number && (
+              <p id="plate_number-error" className={errorTextClass}>
+                {fieldMessage(vehicleErrors.plate_number, 'Nomor polisi wajib diisi.')}
+              </p>
+            )}
+          </div>
+
+          <fieldset className="space-y-1.5">
+            <legend className={labelClass}>Jenis kendaraan</legend>
+            <div className="grid grid-cols-2 gap-2 pt-1.5">
+              {(
+                [
+                  { value: 'mobil', label: 'Mobil', icon: Car },
+                  { value: 'motor', label: 'Motor', icon: Bike }
+                ] as const
+              ).map(({ value, label, icon: Icon }) => (
+                <label
+                  key={value}
+                  className="flex min-h-[44px] cursor-pointer items-center gap-2 rounded-ctl border border-slate-300 px-3.5 text-[15px] font-medium text-slate-800 has-[:checked]:border-primary-600 has-[:checked]:bg-primary-50 has-[:checked]:text-primary-700 dark:border-slate-700 dark:text-slate-200 dark:has-[:checked]:border-primary-500 dark:has-[:checked]:bg-primary-900/40 dark:has-[:checked]:text-primary-100 transition-colors"
+                >
+                  <input type="radio" value={value} {...registerVehicle('vehicle_type')} className="h-4 w-4 accent-primary-600" />
+                  <Icon className="h-4 w-4" aria-hidden />
+                  {label}
+                </label>
+              ))}
             </div>
+            {vehicleErrors.vehicle_type && (
+              <p className={errorTextClass}>{fieldMessage(vehicleErrors.vehicle_type, 'Pilih jenis kendaraan.')}</p>
+            )}
+          </fieldset>
 
-            <DialogFooter className="pt-2">
-              <button
-                type="button"
-                onClick={() => setPasswordDialogOpen(false)}
-                className="px-4 py-2 rounded-xl text-sm font-medium border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
-              >
-                Batal
-              </button>
-              <button
-                type="submit"
-                disabled={passwordLoading}
-                className="px-4 py-2 rounded-xl text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-sm shadow-blue-500/20 transition disabled:opacity-50"
-              >
-                {passwordLoading ? 'Menyimpan...' : 'Perbarui Password'}
-              </button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* ─────────────────────────────────────────────────────────────
-          MODAL 4: Tambah / Edit Kendaraan
-          ───────────────────────────────────────────────────────────── */}
-      <Dialog open={vehicleDialogOpen} onOpenChange={setVehicleDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>
-              {editVehicle ? 'Edit Kendaraan' : 'Tambah Kendaraan Baru'}
-            </DialogTitle>
-          </DialogHeader>
-          <form
-            onSubmit={handleVehicleSubmit((d) => saveVehicleMutation.mutate(d))}
-            className="space-y-4 py-2"
-          >
-            {/* Plat Nomor */}
-            <div className="space-y-1">
-              <label htmlFor="plate_number" className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                Nomor Plat Polisi
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <label htmlFor="brand" className={labelClass}>
+                Merek
               </label>
               <input
-                id="plate_number"
-                {...registerVehicle('plate_number')}
-                placeholder="Contoh: B 1234 XYZ"
-                className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3.5 py-2.5 text-sm font-mono font-bold uppercase text-slate-900 dark:text-white placeholder:text-slate-400 placeholder:font-sans placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+                id="brand"
+                placeholder="Toyota, Honda"
+                aria-invalid={vehicleErrors.brand ? true : undefined}
+                aria-describedby={vehicleErrors.brand ? 'brand-error' : undefined}
+                {...registerVehicle('brand')}
+                className={clsx(inputClass, borderFor(vehicleErrors.brand))}
               />
-              {vehicleErrors.plate_number && (
-                <p className="text-xs text-red-500 mt-1">{vehicleErrors.plate_number.message}</p>
+              {vehicleErrors.brand && (
+                <p id="brand-error" className={errorTextClass}>
+                  {fieldMessage(vehicleErrors.brand, 'Merek wajib diisi.')}
+                </p>
               )}
             </div>
-
-            {/* Merk & Model */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label htmlFor="brand" className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                  Merk
-                </label>
-                <input
-                  id="brand"
-                  {...registerVehicle('brand')}
-                  placeholder="Toyota / Honda"
-                  className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3.5 py-2.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
-                />
-                {vehicleErrors.brand && (
-                  <p className="text-xs text-red-500 mt-1">{vehicleErrors.brand.message}</p>
-                )}
-              </div>
-              <div className="space-y-1">
-                <label htmlFor="model" className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                  Model / Seri
-                </label>
-                <input
-                  id="model"
-                  {...registerVehicle('model')}
-                  placeholder="Avanza / Beat"
-                  className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3.5 py-2.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
-                />
-                {vehicleErrors.model && (
-                  <p className="text-xs text-red-500 mt-1">{vehicleErrors.model.message}</p>
-                )}
-              </div>
+            <div className="space-y-1.5">
+              <label htmlFor="model" className={labelClass}>
+                Model
+              </label>
+              <input
+                id="model"
+                placeholder="Avanza, Beat"
+                aria-invalid={vehicleErrors.model ? true : undefined}
+                aria-describedby={vehicleErrors.model ? 'model-error' : undefined}
+                {...registerVehicle('model')}
+                className={clsx(inputClass, borderFor(vehicleErrors.model))}
+              />
+              {vehicleErrors.model && (
+                <p id="model-error" className={errorTextClass}>
+                  {fieldMessage(vehicleErrors.model, 'Model wajib diisi.')}
+                </p>
+              )}
             </div>
+          </div>
 
-            {/* Tahun & Tipe */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label htmlFor="year" className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                  Tahun Pembuatan
-                </label>
-                <input
-                  id="year"
-                  type="number"
-                  {...registerVehicle('year', { valueAsNumber: true })}
-                  placeholder="2022"
-                  className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3.5 py-2.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
-                />
-                {vehicleErrors.year && (
-                  <p className="text-xs text-red-500 mt-1">{vehicleErrors.year.message}</p>
-                )}
-              </div>
-              <div className="space-y-1">
-                <label htmlFor="vehicle_type" className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                  Tipe Kendaraan
-                </label>
-                <select
-                  id="vehicle_type"
-                  {...registerVehicle('vehicle_type')}
-                  className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3.5 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
-                >
-                  <option value="mobil">Mobil</option>
-                  <option value="motor">Motor</option>
-                </select>
-                {vehicleErrors.vehicle_type && (
-                  <p className="text-xs text-red-500 mt-1">{vehicleErrors.vehicle_type.message}</p>
-                )}
-              </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <label htmlFor="year" className={labelClass}>
+                Tahun pembuatan
+              </label>
+              <input
+                id="year"
+                type="number"
+                inputMode="numeric"
+                aria-invalid={vehicleErrors.year ? true : undefined}
+                aria-describedby={vehicleErrors.year ? 'year-error' : undefined}
+                {...registerVehicle('year', { valueAsNumber: true })}
+                className={clsx(inputClass, borderFor(vehicleErrors.year))}
+              />
+              {vehicleErrors.year && (
+                <p id="year-error" className={errorTextClass}>
+                  {fieldMessage(vehicleErrors.year, 'Isi tahun pembuatan, misalnya 2020.')}
+                </p>
+              )}
             </div>
-
-            {/* Odometer */}
-            <div className="space-y-1">
-              <label htmlFor="last_odometer_km" className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                Odometer Terakhir (km)
+            <div className="space-y-1.5">
+              <label htmlFor="last_odometer_km" className={labelClass}>
+                Odometer terakhir (km)
               </label>
               <input
                 id="last_odometer_km"
                 type="number"
+                inputMode="numeric"
+                min={0}
+                aria-invalid={vehicleErrors.last_odometer_km ? true : undefined}
+                aria-describedby={vehicleErrors.last_odometer_km ? 'last_odometer_km-error' : undefined}
                 {...registerVehicle('last_odometer_km', { valueAsNumber: true })}
-                placeholder="Contoh: 15000"
-                className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3.5 py-2.5 text-sm font-data text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+                className={clsx(inputClass, borderFor(vehicleErrors.last_odometer_km))}
               />
               {vehicleErrors.last_odometer_km && (
-                <p className="text-xs text-red-500 mt-1">{vehicleErrors.last_odometer_km.message}</p>
+                <p id="last_odometer_km-error" className={errorTextClass}>
+                  {fieldMessage(vehicleErrors.last_odometer_km, 'Isi angka km, atau 0 kalau belum tahu.')}
+                </p>
               )}
             </div>
-
-            <DialogFooter className="pt-2">
-              <button
-                type="button"
-                onClick={() => setVehicleDialogOpen(false)}
-                className="px-4 py-2 rounded-xl text-sm font-medium border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
-              >
-                Batal
-              </button>
-              <button
-                type="submit"
-                disabled={saveVehicleMutation.isPending}
-                className="px-4 py-2 rounded-xl text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-sm shadow-blue-500/20 transition disabled:opacity-50"
-              >
-                {saveVehicleMutation.isPending ? 'Menyimpan...' : 'Simpan Kendaraan'}
-              </button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* ─────────────────────────────────────────────────────────────
-          MODAL 5: Konfirmasi Hapus Kendaraan
-          ───────────────────────────────────────────────────────────── */}
-      <Dialog
-        open={Boolean(deleteConfirmVehicle)}
-        onOpenChange={(open) => !open && setDeleteConfirmVehicle(null)}
-      >
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-red-600">
-              <AlertTriangle className="h-5 w-5" />
-              <span>Hapus Kendaraan</span>
-            </DialogTitle>
-          </DialogHeader>
-          <div className="py-2 text-sm text-slate-600 dark:text-slate-300">
-            Apakah Anda yakin ingin menghapus kendaraan{' '}
-            <strong className="font-mono text-slate-900 dark:text-white">
-              {deleteConfirmVehicle?.plate_number}
-            </strong>{' '}
-            ({deleteConfirmVehicle?.brand} {deleteConfirmVehicle?.model})? Tindakan ini tidak dapat dibatalkan.
           </div>
-          <DialogFooter className="pt-2">
-            <button
-              type="button"
-              onClick={() => setDeleteConfirmVehicle(null)}
-              className="px-4 py-2 rounded-xl text-sm font-medium border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
-            >
-              Batal
-            </button>
-            <button
-              type="button"
-              disabled={deleteVehicleMutation.isPending}
-              onClick={() => deleteConfirmVehicle && deleteVehicleMutation.mutate(deleteConfirmVehicle.id)}
-              className="px-4 py-2 rounded-xl text-sm font-semibold bg-red-600 hover:bg-red-700 text-white shadow-sm shadow-red-600/20 transition disabled:opacity-50"
-            >
-              {deleteVehicleMutation.isPending ? 'Menghapus...' : 'Ya, Hapus'}
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
-      {/* ─────────────────────────────────────────────────────────────
-          MODAL 6: Konfirmasi Logout
-          ───────────────────────────────────────────────────────────── */}
-      <Dialog open={logoutDialogOpen} onOpenChange={setLogoutDialogOpen}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-slate-900 dark:text-white">
-              <LogOut className="h-5 w-5 text-red-600" />
-              <span>Konfirmasi Keluar</span>
-            </DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-slate-600 dark:text-slate-300 py-2">
-            Apakah Anda yakin ingin keluar dari akun ServiceGo Anda?
-          </p>
-          <DialogFooter className="pt-2">
-            <button
-              type="button"
-              onClick={() => setLogoutDialogOpen(false)}
-              className="px-4 py-2 rounded-xl text-sm font-medium border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
-            >
+          <ModalActions>
+            <button type="button" onClick={() => setVehicleOpen(false)} className={btnSecondary}>
               Batal
             </button>
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="px-4 py-2 rounded-xl text-sm font-semibold bg-red-600 hover:bg-red-700 text-white shadow-sm shadow-red-600/20 transition"
-            >
-              Keluar Sekarang
+            <button type="submit" disabled={saveVehicleMutation.isPending} className={btnPrimary}>
+              {saveVehicleMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
+              {saveVehicleMutation.isPending ? 'Menyimpan...' : editVehicle ? 'Simpan perubahan' : 'Tambah kendaraan'}
             </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </ModalActions>
+        </form>
+      </Modal>
+
+      {/* Dialog: konfirmasi hapus kendaraan */}
+      <Modal
+        open={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        title="Hapus kendaraan?"
+        description={
+          deleteTarget && (
+            <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <Plate number={deleteTarget.plate_number} size="sm" />
+              <span>
+                {deleteTarget.brand} {deleteTarget.model} akan dihapus dari akun kamu.
+              </span>
+            </span>
+          )
+        }
+      >
+        <ModalActions>
+          <button type="button" onClick={() => setDeleteTarget(null)} className={btnSecondary}>
+            Batal
+          </button>
+          <button
+            type="button"
+            disabled={deleteVehicleMutation.isPending}
+            onClick={() => deleteTarget && deleteVehicleMutation.mutate(deleteTarget.id)}
+            className={btnDanger}
+          >
+            {deleteVehicleMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
+            {deleteVehicleMutation.isPending ? 'Menghapus...' : 'Ya, hapus'}
+          </button>
+        </ModalActions>
+      </Modal>
+
+      {/* Dialog: konfirmasi keluar */}
+      <Modal
+        open={logoutOpen}
+        onClose={() => setLogoutOpen(false)}
+        title="Keluar dari akun?"
+        description="Kamu perlu masuk lagi untuk booking atau melihat riwayat servis."
+      >
+        <ModalActions>
+          <button type="button" onClick={() => setLogoutOpen(false)} className={btnSecondary}>
+            Batal
+          </button>
+          <button type="button" onClick={handleLogout} disabled={loggingOut} className={btnDanger}>
+            {loggingOut && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
+            Keluar
+          </button>
+        </ModalActions>
+      </Modal>
     </div>
   );
 }

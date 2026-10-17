@@ -1,124 +1,141 @@
 'use client';
 
-import { Calendar, Clock, FileText, AlertCircle, Loader2 } from 'lucide-react';
+import { clsx } from 'clsx';
+import { ErrorState } from '@/components/customer/states';
 import { TimeSlot } from './types';
+import { SlotSkeleton } from './booking-skeletons';
+import { StepSection } from './booking-stepper';
+import { localDateString } from './use-booking-form';
 
 interface SchedulePickerProps {
+  hasBranch: boolean;
   selectedDate: string;
   onDateChange: (date: string) => void;
   selectedTime: string;
   onTimeChange: (time: string) => void;
   complaintNotes: string;
   onComplaintNotesChange: (notes: string) => void;
-  availableSlots: TimeSlot[];
+  slots: TimeSlot[];
   isLoadingSlots: boolean;
   isErrorSlots: boolean;
+  onRetrySlots: () => void;
+  active: boolean;
+  done: boolean;
+  /** Nomor langkah (3 bila langkah bengkel dilewati karena hanya ada satu bengkel). */
+  number?: number;
 }
 
+const fieldClass =
+  'w-full rounded-ctl border border-slate-300 bg-white px-4 text-[15px] text-slate-900 transition-colors placeholder:text-slate-500 hover:border-slate-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500 dark:hover:border-slate-600';
+
 export function SchedulePicker({
+  hasBranch,
   selectedDate,
   onDateChange,
   selectedTime,
   onTimeChange,
   complaintNotes,
   onComplaintNotesChange,
-  availableSlots,
+  slots,
   isLoadingSlots,
-  isErrorSlots
+  isErrorSlots,
+  onRetrySlots,
+  active,
+  done,
+  number = 4
 }: SchedulePickerProps) {
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const minDate = tomorrow.toISOString().split('T')[0];
+  const minDate = localDateString(1);
+  const allFull = slots.length > 0 && slots.every((s) => !s.is_available);
 
   return (
-    <section className="rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 sm:p-6 shadow-sm space-y-4">
-      <div className="flex items-center gap-3">
-        <div className="h-8 w-8 rounded-xl bg-blue-50 dark:bg-blue-950 text-primary-600 flex items-center justify-center font-bold text-sm">
-          4
-        </div>
-        <div>
-          <h2 className="text-base font-bold text-slate-900 dark:text-white">Jadwal & Catatan Servis</h2>
-          <p className="text-xs text-slate-500">Tentukan waktu kedatangan Anda ke bengkel</p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {/* Date picker */}
-        <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-            <Calendar className="h-4 w-4 text-primary-600" />
-            <span>Tanggal Kedatangan</span>
+    <StepSection
+      stepKey="jadwal"
+      number={number}
+      title="Kapan kamu datang?"
+      description="Servis bisa dijadwalkan mulai besok. Jam dalam WIB."
+      active={active}
+      done={done}
+    >
+      <div className="space-y-5">
+        <div className="space-y-1.5 sm:max-w-xs">
+          <label htmlFor="booking-date" className="text-[15px] font-bold text-slate-900 dark:text-white">
+            Tanggal datang
           </label>
           <input
+            id="booking-date"
             type="date"
             value={selectedDate}
             min={minDate}
             onChange={(e) => onDateChange(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/70 px-4 py-3 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary-500"
+            className={clsx(fieldClass, 'h-12 dark:[color-scheme:dark]')}
           />
         </div>
 
-        {/* Time slot picker */}
-        <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-            <Clock className="h-4 w-4 text-primary-600" />
-            <span>Pukul Kedatangan</span>
-          </label>
-          <div className="relative">
-            <select
-              value={selectedTime}
-              disabled={isLoadingSlots || isErrorSlots || availableSlots.length === 0}
-              onChange={(e) => onTimeChange(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/70 px-4 py-3 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {isLoadingSlots ? (
-                <option value="">Memuat slot waktu...</option>
-              ) : isErrorSlots ? (
-                <option value="">Gagal memuat slot</option>
-              ) : availableSlots.length === 0 ? (
-                <option value="">Tidak ada slot tersedia</option>
-              ) : (
-                <>
-                  <option value="">-- Pilih Jam Kedatangan --</option>
-                  {availableSlots.map((slot) => (
-                    <option key={slot.time} value={slot.time}>
-                      Pukul {slot.time} WIB
-                    </option>
-                  ))}
-                </>
-              )}
-            </select>
-            {isLoadingSlots && (
-              <div className="absolute right-3 top-3.5 text-slate-400">
-                <Loader2 className="h-4 w-4 animate-spin" />
-              </div>
-            )}
-          </div>
-
-          {/* Helper hint for empty slots */}
-          {!isLoadingSlots && !isErrorSlots && availableSlots.length === 0 && (
-            <p className="text-[11px] text-amber-600 dark:text-amber-400 flex items-center gap-1 mt-1">
-              <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-              <span>Semua slot waktu di tanggal ini sudah penuh, silakan pilih tanggal lain.</span>
+        <fieldset className="space-y-2.5">
+          <legend className="text-[15px] font-bold text-slate-900 dark:text-white">Jam datang</legend>
+          {!hasBranch ? (
+            <p className="rounded-2xl bg-slate-50 px-4 py-3.5 text-[15px] text-slate-600 dark:bg-slate-800/60 dark:text-slate-400">
+              Pilih bengkel dulu, nanti jam yang masih kosong muncul di sini.
             </p>
+          ) : !selectedDate ? (
+            <p className="text-sm text-slate-600 dark:text-slate-400">Pilih tanggal dulu.</p>
+          ) : isLoadingSlots ? (
+            <SlotSkeleton />
+          ) : isErrorSlots ? (
+            <ErrorState title="Jam kosong belum bisa dicek" onRetry={onRetrySlots} />
+          ) : slots.length === 0 ? (
+            <p className="text-sm text-slate-600 dark:text-slate-400">Belum ada jadwal operasional untuk tanggal ini.</p>
+          ) : (
+            <>
+              <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4" role="radiogroup" aria-label="Jam datang">
+                {slots.map((slot) => {
+                  const selected = selectedTime === slot.time;
+                  return (
+                    <button
+                      key={slot.time}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      disabled={!slot.is_available}
+                      onClick={() => onTimeChange(slot.time)}
+                      className={clsx(
+                        'flex min-h-[52px] flex-col items-center justify-center rounded-ctl border px-2 py-1.5 text-[15px] font-semibold transition-colors',
+                        selected
+                          ? 'border-primary-600 bg-primary-600 font-bold text-white'
+                          : slot.is_available
+                          ? 'border-slate-300 bg-white text-slate-900 hover:border-slate-400 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:hover:bg-slate-800'
+                          : 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-500 dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-500'
+                      )}
+                    >
+                      {slot.time}
+                      {!slot.is_available && <span className="text-[11px] font-medium">Penuh</span>}
+                    </button>
+                  );
+                })}
+              </div>
+              {allFull && (
+                <p className="text-sm text-amber-800 dark:text-amber-300">
+                  Semua jam di tanggal ini sudah penuh. Coba tanggal lain.
+                </p>
+              )}
+            </>
           )}
+        </fieldset>
+
+        <div className="space-y-1.5 border-t border-slate-200 pt-5 dark:border-slate-800">
+          <label htmlFor="booking-notes" className="text-[15px] font-bold text-slate-900 dark:text-white">
+            Keluhan kendaraan <span className="font-normal text-slate-600 dark:text-slate-400">(opsional)</span>
+          </label>
+          <textarea
+            id="booking-notes"
+            rows={3}
+            placeholder="Misal: ada bunyi decit saat mengerem"
+            value={complaintNotes}
+            onChange={(e) => onComplaintNotesChange(e.target.value)}
+            className={clsx(fieldClass, 'resize-none py-3')}
+          />
         </div>
       </div>
-
-      {/* Complaint notes */}
-      <div className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-slate-800">
-        <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-          <FileText className="h-4 w-4 text-primary-600" />
-          <span>Catatan Gejala / Keluhan Kendaraan (Opsional)</span>
-        </label>
-        <textarea
-          rows={3}
-          placeholder="Contoh: Bunyi decit saat pengereman, lampu indikator oli sempat berkedip, dll…"
-          value={complaintNotes}
-          onChange={(e) => onComplaintNotesChange(e.target.value)}
-          className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/70 px-4 py-3 text-xs sm:text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
-        />
-      </div>
-    </section>
+    </StepSection>
   );
 }

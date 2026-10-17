@@ -61,6 +61,7 @@ model Profile {
   bookings       Booking[]
   status_changes BookingStatusHistory[]
   notifications  Notification[]
+  support_conversations SupportConversation[]
 
   @@map("profiles")
 }
@@ -231,4 +232,42 @@ model Payment {
   booking Booking @relation(fields: [booking_id], references: [id], onDelete: Cascade)
 
   @@map("payments")
+}
+
+// ── Live CS (PLAN.md #2) ─────────────────────────────────────────────
+// Tabel, trigger, RLS, dan realtime dibuat oleh supabase/support_chat.sql.
+// Model di sini supaya Prisma mengenal tabelnya (prisma db push tidak menganggapnya drift).
+// Klien membaca/menulis langsung lewat Supabase (RLS), bukan lewat API Prisma.
+model SupportConversation {
+  id                 String   @id @default(uuid()) @db.Uuid
+  customer_id        String   @db.Uuid
+  customer_name      String   @default("")
+  customer_email     String   @default("")
+  status             String   @default("active")
+  last_message       String?
+  last_message_at    DateTime @default(now()) @db.Timestamptz(6)
+  unread_admin_count Int      @default(0)
+  created_at         DateTime @default(now()) @db.Timestamptz(6)
+
+  customer Profile          @relation(fields: [customer_id], references: [auth_user_id], onDelete: Cascade)
+  messages SupportMessage[]
+
+  @@index([customer_id], map: "support_conversations_customer_idx")
+  @@index([last_message_at(sort: Desc)], map: "support_conversations_last_msg_idx")
+  @@map("support_conversations")
+}
+
+model SupportMessage {
+  id              String   @id @default(uuid()) @db.Uuid
+  conversation_id String   @db.Uuid
+  sender_type     String
+  sender_id       String?  @db.Uuid
+  message         String
+  is_read         Boolean  @default(false)
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+
+  conversation SupportConversation @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+
+  @@index([conversation_id, created_at], map: "support_messages_conversation_idx")
+  @@map("support_messages")
 }

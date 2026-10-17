@@ -10,7 +10,7 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Design tokens from DESIGN.md §3
+        // Design tokens: lihat DESIGN.md (root monorepo)
         primary: {
           50: '#EFF6FF',
           100: '#DBEAFE',
@@ -58,14 +58,18 @@ const config: Config = {
         ring: 'rgb(var(--ring) / <alpha-value>)'
       },
       fontFamily: {
-        sans: ['Plus Jakarta Sans', 'sans-serif'],
-        mono: ['JetBrains Mono', 'monospace']
+        sans: ['var(--font-sans)', 'Plus Jakarta Sans', 'system-ui', 'sans-serif'],
+        mono: ['var(--font-mono)', 'JetBrains Mono', 'monospace']
       },
       borderRadius: {
         sm: '8px',
         md: '12px',
         lg: '16px',
-        xl: '20px'
+        xl: '20px',
+        // Token portal pelanggan (DESIGN.md): kontrol 12px, chip 8px, plat 6px
+        ctl: '12px',
+        chip: '8px',
+        plate: '6px'
       },
       keyframes: {
         shimmer: {

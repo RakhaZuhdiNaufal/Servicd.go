@@ -2,91 +2,153 @@
 
 import { Check } from 'lucide-react';
 import { clsx } from 'clsx';
+import { BookingStep, BookingStepKey, STEP_ANCHOR } from './types';
 
 interface BookingStepperProps {
-  hasVehicle: boolean;
-  hasServices: boolean;
-  hasBranch: boolean;
-  hasSchedule: boolean;
+  steps: BookingStep[];
+  activeStep: BookingStepKey | null;
 }
 
-export function BookingStepper({
-  hasVehicle,
-  hasServices,
-  hasBranch,
-  hasSchedule
-}: BookingStepperProps) {
-  // A step is only considered sequentially completed if preceding steps are also satisfied
-  const step1Done = hasVehicle;
-  const step2Done = step1Done && hasServices;
-  const step3Done = step2Done && hasBranch;
-  const step4Done = step3Done && hasSchedule;
-
-  // Active step is the earliest incomplete step
-  const activeStep = !step1Done ? 1 : !step2Done ? 2 : !step3Done ? 3 : !step4Done ? 4 : 4;
-
-  const steps = [
-    { number: 1, label: 'Kendaraan', done: step1Done },
-    { number: 2, label: 'Layanan', done: step2Done },
-    { number: 3, label: 'Bengkel', done: step3Done },
-    { number: 4, label: 'Jadwal', done: step4Done }
-  ];
-
-  const lineConnectors = [step1Done, step2Done, step3Done];
-
+/**
+ * Penanda progres booking (3 langkah bila hanya ada satu bengkel, 4 bila perlu memilih bengkel),
+ * memakai bahasa visual "garis atas" yang sama dengan bagian "Booking dalam tiga langkah" di landing.
+ * Tiap langkah adalah link ke section-nya.
+ */
+export function BookingStepper({ steps, activeStep }: BookingStepperProps) {
   return (
-    <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-5 shadow-sm">
-      <div className="max-w-3xl mx-auto">
-        <div className="flex items-center justify-between">
-          {steps.map((step, idx) => {
-            const isActive = activeStep === step.number && !step.done;
-
-            return (
-              <div key={step.number} className="flex-1 flex items-center last:flex-none">
-                {/* Step Node */}
-                <div className="flex flex-col items-center shrink-0">
-                  <div
-                    className={clsx(
-                      'h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold transition shadow-sm',
-                      step.done
-                        ? 'bg-primary-600 text-white shadow-primary-600/30'
-                        : isActive
-                        ? 'border-2 border-primary-600 bg-primary-50 dark:bg-primary-950 text-primary-600 ring-2 ring-primary-500/20'
-                        : 'bg-white dark:bg-slate-800 text-slate-400 border border-slate-300 dark:border-slate-700'
-                    )}
-                  >
-                    {step.done ? <Check className="h-4 w-4 stroke-[3]" /> : step.number}
-                  </div>
-                  <span
-                    className={clsx(
-                      'text-xs font-semibold mt-1.5 whitespace-nowrap',
-                      step.done || isActive
-                        ? 'text-slate-900 dark:text-white'
-                        : 'text-slate-400 dark:text-slate-500'
-                    )}
-                  >
-                    {step.number}. {step.label}
-                  </span>
-                </div>
-
-                {/* Segmented connector line to next step */}
-                {idx < steps.length - 1 && (
-                  <div className="flex-1 mx-2 sm:mx-4 -mt-5">
-                    <div
-                      className={clsx(
-                        'h-0.5 w-full rounded-full transition-colors duration-300',
-                        lineConnectors[idx]
-                          ? 'bg-primary-600'
-                          : 'bg-slate-200 dark:bg-slate-700'
-                      )}
-                    />
-                  </div>
+    <nav aria-label="Langkah booking">
+      <ol className={clsx('grid gap-2 sm:gap-4', steps.length === 3 ? 'grid-cols-3' : 'grid-cols-4')}>
+        {steps.map((step) => {
+          const isActive = step.key === activeStep;
+          const lit = step.done || isActive;
+          return (
+            <li key={step.key}>
+              <a
+                href={`#${STEP_ANCHOR[step.key]}`}
+                aria-current={isActive ? 'step' : undefined}
+                className={clsx(
+                  'flex min-h-[52px] flex-col gap-0.5 border-t-[3px] pb-1 pt-2.5 transition-colors hover:border-primary-700 dark:hover:border-primary-100',
+                  lit ? 'border-primary-600 dark:border-primary-500' : 'border-slate-200 dark:border-slate-700'
                 )}
-              </div>
-            );
-          })}
+              >
+                <span
+                  className={clsx(
+                    'flex items-center gap-1 text-[13px] font-semibold',
+                    lit ? 'text-primary-700 dark:text-primary-100' : 'text-slate-600 dark:text-slate-400'
+                  )}
+                >
+                  {step.done && <Check className="h-3.5 w-3.5" strokeWidth={3} aria-hidden />}
+                  <span className="hidden sm:inline">Langkah</span> {step.number}
+                </span>
+                <span
+                  className={clsx(
+                    'text-[13px] font-bold sm:text-[17px]',
+                    lit ? 'text-slate-900 dark:text-white' : 'text-slate-600 dark:text-slate-400'
+                  )}
+                >
+                  {step.label}
+                  <span className="sr-only">{step.done ? ' (sudah dipilih)' : isActive ? ' (langkah sekarang)' : ''}</span>
+                </span>
+              </a>
+            </li>
+          );
+        })}
+      </ol>
+    </nav>
+  );
+}
+
+/**
+ * Bingkai satu langkah. Langkah yang sedang dikerjakan diberi garis biru supaya jadi
+ * titik fokus; langkah lain tetap bisa diubah tapi tampil tenang.
+ */
+export function StepSection({
+  stepKey,
+  number,
+  title,
+  description,
+  active,
+  done,
+  aside,
+  children
+}: {
+  stepKey: BookingStepKey;
+  number: number;
+  title: string;
+  description?: string;
+  active: boolean;
+  done: boolean;
+  aside?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  const headingId = `${STEP_ANCHOR[stepKey]}-judul`;
+  return (
+    <section
+      id={STEP_ANCHOR[stepKey]}
+      aria-labelledby={headingId}
+      className={clsx(
+        'scroll-mt-24 rounded-[20px] border bg-white p-5 transition-colors dark:bg-slate-900 sm:p-7',
+        active
+          ? 'border-primary-600 ring-1 ring-primary-600 dark:border-primary-500 dark:ring-primary-500'
+          : 'border-slate-200 dark:border-slate-800'
+      )}
+    >
+      <div className="mb-5 flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-3.5">
+          <span
+            className={clsx(
+              'flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold',
+              done
+                ? 'bg-primary-600 text-white'
+                : active
+                ? 'border-2 border-primary-600 text-primary-700 dark:border-primary-500 dark:text-primary-100'
+                : 'border border-slate-300 text-slate-600 dark:border-slate-600 dark:text-slate-400'
+            )}
+            aria-hidden
+          >
+            {done ? <Check className="h-4 w-4" strokeWidth={3} /> : number}
+          </span>
+          <div className="min-w-0">
+            <h2
+              id={headingId}
+              className="text-[20px] font-extrabold leading-tight tracking-[-0.01em] text-slate-900 dark:text-white sm:text-[24px]"
+            >
+              {title}
+            </h2>
+            {description && <p className="mt-1 text-[15px] text-slate-600 dark:text-slate-400">{description}</p>}
+          </div>
         </div>
+        {aside && <div className="shrink-0">{aside}</div>}
       </div>
-    </div>
+      {children}
+    </section>
+  );
+}
+
+/** Kelas bersama untuk kartu pilihan (kendaraan, layanan, bengkel). */
+export function optionClass(selected: boolean) {
+  return clsx(
+    'flex w-full min-h-[44px] items-start gap-3 rounded-2xl border p-4 text-left transition-colors sm:p-5',
+    selected
+      ? 'border-primary-600 bg-primary-50 ring-1 ring-primary-600 dark:border-primary-500 dark:bg-primary-900/40 dark:ring-primary-500'
+      : 'border-slate-200 bg-white hover:border-slate-400 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-slate-500'
+  );
+}
+
+/** Indikator bulat (radio) atau kotak (checkbox) di kartu pilihan. */
+export function SelectIndicator({ selected, shape = 'round' }: { selected: boolean; shape?: 'round' | 'square' }) {
+  return (
+    <span
+      aria-hidden
+      className={clsx(
+        'mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center',
+        shape === 'round' ? 'rounded-full' : 'rounded-plate',
+        selected
+          ? 'bg-primary-600 text-white'
+          : 'border-2 border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-900'
+      )}
+    >
+      {selected && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
+    </span>
   );
 }

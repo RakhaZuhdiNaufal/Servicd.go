@@ -152,10 +152,10 @@ Dokumen ini mencatat rencana fitur, arsitektur teknis, dan rancangan implementas
 ---
 
 ### 5. Checklist Tahapan Pengerjaan
-- [ ] **Step 1**: Menambahkan DDL tabel `support_conversations` & `support_messages` di `supabase_schema.sql` serta mengaktifkan Supabase Realtime replication pada tabel tersebut.
-- [ ] **Step 2**: Menghubungkan pengiriman pesan custom di `support-chat-drawer.tsx` ke Supabase insert & subscribe realtime channel.
-- [ ] **Step 3**: Membuat halaman panel live chat di Admin (`apps/web/app/(admin)/admin/support/page.tsx`).
-- [ ] **Step 4**: Menambahkan menu "Live Support" pada sidebar Admin navigation (`admin-shell.tsx`).
+- [x] **Step 1**: DDL `support_conversations` & `support_messages` + trigger, RLS, dan Realtime ada di `supabase/support_chat.sql` (jalankan sekali di Supabase SQL Editor). Model Prisma ditambahkan agar tidak dianggap drift.
+- [x] **Step 2**: `support-chat-drawer.tsx` tersambung lewat `lib/support-chat.ts` (insert + subscribe realtime). Live chat khusus pengguna login; tamu tetap dapat jawaban cepat.
+- [x] **Step 3**: Halaman `apps/web/app/(admin)/admin/support/page.tsx` (inbox + filter, ruang chat, balasan cepat, tandai selesai).
+- [x] **Step 4**: Menu "Live Support" di sidebar admin.
 - [ ] **Step 5**: Pengujian dua arah: Customer mengirim pertanyaan ➔ Notifikasi chat muncul di Admin ➔ Admin membalas ➔ Balasan langsung tampil realtime di drawer Customer.
 
 ---

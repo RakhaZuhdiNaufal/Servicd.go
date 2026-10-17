@@ -60,16 +60,15 @@ export async function GET(
       return sum + cost;
     }, 0);
 
-    // Hitung poin: 1 poin per Rp 10.000 transaksi + base poin awal (misal 320 untuk demo/member aktif)
-    const pointsFromSpend = Math.floor(totalSpent / 10000);
-    const points = Math.max(320, pointsFromSpend); // Nilai dasar minimal 320 sesuai UI beranda
-    const discountValue = points * 100; // 1 poin = Rp 100 diskon (320 poin = Rp 32.000)
+    // Poin: 1 poin per Rp 10.000 dari servis yang sudah selesai. Tidak ada poin dasar/bonus karangan.
+    // Catatan: belum ada fitur tukar poin, jadi API tidak menjanjikan nilai tukar atau benefit apa pun.
+    const points = Math.floor(totalSpent / 10000);
 
-    // Tentukan Tier Level
+    // Tier dihitung dari riwayat servis selesai (aturan lama dipertahankan).
     const bookingCount = completedBookings.length;
     let tier: 'Bronze' | 'Silver' | 'Gold' | 'Platinum' = 'Bronze';
     let nextTier = 'Silver';
-    let nextTierProgress = Math.min(100, Math.round((bookingCount / 3) * 100));
+    let nextTierProgress = Math.min(100, Math.round((bookingCount / 2) * 100));
 
     if (bookingCount >= 10 || totalSpent >= 2500000) {
       tier = 'Platinum';
@@ -85,23 +84,16 @@ export async function GET(
       nextTierProgress = Math.min(100, Math.round(((bookingCount - 2) / 3) * 100));
     }
 
-    const benefits = [
-      `Tukarkan ${points} poin dengan potongan biaya servis Rp ${discountValue.toLocaleString('id-ID')}`,
-      tier === 'Gold' || tier === 'Platinum' ? 'Antrean booking prioritas VIP' : 'Booking jadwal online 24/7',
-      tier === 'Platinum' ? 'Gratis cuci & detailing ringan setiap servis berkala' : 'Garansi pengerjaan 14 hari penuh'
-    ];
-
     return apiSuccess({
       customer_id: profile.id,
       full_name: profile.full_name,
       points,
-      discount_value: discountValue,
+      points_redeemable: false,
       tier,
       total_bookings_completed: bookingCount,
       total_spent: totalSpent,
       next_tier: nextTier,
-      next_tier_progress: nextTierProgress,
-      benefits
+      next_tier_progress: nextTierProgress
     }, 'Data loyalty pelanggan berhasil diambil');
   } catch (error: any) {
     return apiError(error.message || 'Gagal mengambil data loyalty pelanggan', 500);

@@ -22,6 +22,7 @@ import {
   Check
 } from 'lucide-react';
 import { clsx } from 'clsx';
+import { WorkshopFront, WorkshopSmall } from '@/components/illustrations/workshop';
 
 export interface ServiceGoBranchLocation {
   id: string;
@@ -38,95 +39,26 @@ export interface ServiceGoBranchLocation {
   distance: string;
   badge: string;
   specialty: string;
-  image: string;
 }
 
-// 5 Official Mock Locations (2 in Depok, 1 in Bogor, 2 in Jakarta)
+// Satu-satunya bengkel ServiceGo (sama dengan data seed). Gambar bengkel memakai ilustrasi SVG,
+// bukan foto.
 export const SERVICEGO_BRANCHES: ServiceGoBranchLocation[] = [
   {
-    id: 'branch-depok-1',
-    name: 'ServiceGo Margonda Depok',
+    id: '11111111-1111-1111-1111-111111111113',
+    name: 'ServiceGo Depok',
     city: 'Depok',
     cityLabel: 'Kota Depok',
-    address: 'Jl. Margonda Raya No. 45, Pondok Cina, Beji, Kota Depok',
+    address: 'Jl. Margonda Raya No. 45, Beji, Kota Depok',
     phone: '021-77201234',
-    hours: 'Senin - Sabtu: 08:00 - 17:00 WIB',
+    hours: 'Slot datang 08.00 sampai 16.00 WIB',
     rating: 4.8,
     reviewsCount: 1240,
     lat: -6.3725,
     lng: 106.8327,
     distance: '1.2 km',
-    badge: 'Cabang Utama Depok',
-    specialty: 'Ganti Oli · Rem · Tune-up · AC Mobil',
-    image: '/images/branches/depok-margonda.jpg'
-  },
-  {
-    id: 'branch-depok-2',
-    name: 'ServiceGo Cinere Depok',
-    city: 'Depok',
-    cityLabel: 'Kota Depok',
-    address: 'Jl. Cinere Raya No. 12, Cinere, Kota Depok',
-    phone: '021-75405678',
-    hours: 'Senin - Sabtu: 08:30 - 17:00 WIB',
-    rating: 4.8,
-    reviewsCount: 892,
-    lat: -6.3218,
-    lng: 106.7820,
-    distance: '2.8 km',
-    badge: 'Spesialis Kelistrikan',
-    specialty: 'Kelistrikan · Tune-up · AC · Spooring',
-    image: '/images/branches/depok-cinere.jpg'
-  },
-  {
-    id: 'branch-bogor-1',
-    name: 'ServiceGo Pajajaran Bogor',
-    city: 'Bogor',
-    cityLabel: 'Kota Bogor',
-    address: 'Jl. Raya Pajajaran No. 28, Bantarjati, Kota Bogor',
-    phone: '0251-8321456',
-    hours: 'Senin - Minggu: 08:00 - 18:00 WIB',
-    rating: 4.9,
-    reviewsCount: 640,
-    lat: -6.5892,
-    lng: 106.8062,
-    distance: '18 km',
-    badge: 'Buka 7 Hari',
-    specialty: 'Servis Berkala · Radiator · Kaki-kaki · Oli',
-    image: '/images/branches/bogor-pajajaran.jpeg'
-  },
-  {
-    id: 'branch-jakarta-1',
-    name: 'ServiceGo Kebon Jeruk (Jakarta Barat)',
-    city: 'Jakarta',
-    cityLabel: 'DKI Jakarta',
-    address: 'Jl. Raya Perjuangan No. 88, Kebon Jeruk, Jakarta Barat',
-    phone: '021-5551234',
-    hours: 'Senin - Sabtu: 08:00 - 17:00 WIB',
-    rating: 4.9,
-    reviewsCount: 2150,
-    lat: -6.1895,
-    lng: 106.7684,
-    distance: '12 km',
-    badge: 'Pusat ServiceGo Jabodetabek',
-    specialty: 'Spesialis Mesin · Transmisi · Rem · Overhaul',
-    image: '/images/branches/jakarta-kebonjeruk.jpg'
-  },
-  {
-    id: 'branch-jakarta-2',
-    name: 'ServiceGo Fatmawati (Jakarta Selatan)',
-    city: 'Jakarta',
-    cityLabel: 'DKI Jakarta',
-    address: 'Jl. RS Fatmawati Raya No. 15, Cilandak, Jakarta Selatan',
-    phone: '021-7661234',
-    hours: 'Senin - Sabtu: 08:00 - 17:00 WIB',
-    rating: 4.7,
-    reviewsCount: 1530,
-    lat: -6.2942,
-    lng: 106.7935,
-    distance: '8.5 km',
-    badge: 'Fast Service Express',
-    specialty: 'Servis Cepat · Ganti Oli · AC Mobil · Kelistrikan',
-    image: '/images/branches/jakarta-fatmawati.jpg'
+    badge: 'Bengkel ServiceGo',
+    specialty: 'Ganti Oli · Rem · Tune-up · AC Mobil'
   }
 ];
 
@@ -438,7 +370,7 @@ export function BranchMapModal({ isOpen, onClose, initialBranchId }: BranchMapMo
       mapInstanceRef.current = map;
       markersRef.current.clear();
 
-      // Add 5 markers
+      // Marker bengkel
       SERVICEGO_BRANCHES.forEach((b) => {
         const isInitialSelected = b.id === targetBranch.id;
         const marker = L.marker([b.lat, b.lng], {
@@ -451,7 +383,6 @@ export function BranchMapModal({ isOpen, onClose, initialBranchId }: BranchMapMo
 
         const popupContent = `
           <div style="font-family: inherit; padding: 4px 2px; min-width: 220px;">
-            <img src="${b.image}" alt="${b.name}" style="width: 100%; height: 95px; object-fit: cover; border-radius: 8px; margin-bottom: 8px;" />
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
               <span style="font-size: 10px; font-weight: 800; background: #dbeafe; color: #1e40af; padding: 2px 6px; border-radius: 9999px;">
                 ${b.cityLabel}
@@ -604,7 +535,7 @@ export function BranchMapModal({ isOpen, onClose, initialBranchId }: BranchMapMo
                 onFocus={() => {
                   setIsSearchFocused(true);
                 }}
-                placeholder="Cari cabang, wilayah, layanan..."
+                placeholder="Cari bengkel, wilayah, layanan..."
                 className="text-xs font-semibold text-slate-800 dark:text-slate-100 bg-transparent w-full outline-hidden placeholder:text-slate-400"
               />
 
@@ -670,11 +601,9 @@ export function BranchMapModal({ isOpen, onClose, initialBranchId }: BranchMapMo
                           isSelected && 'bg-blue-50/70 dark:bg-blue-950/40'
                         )}
                       >
-                        <img
-                          src={branch.image}
-                          alt={branch.name}
-                          className="w-12 h-12 rounded-lg object-cover shrink-0 border border-slate-200 dark:border-slate-700 shadow-2xs"
-                        />
+                        <span className="w-12 h-12 rounded-lg overflow-hidden shrink-0 border border-slate-200 dark:border-slate-700">
+                          <WorkshopSmall decorative cover />
+                        </span>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-1.5">
                             <span className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">
@@ -706,7 +635,7 @@ export function BranchMapModal({ isOpen, onClose, initialBranchId }: BranchMapMo
                 ) : (
                   <div className="p-4 text-center space-y-1">
                     <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                      Tidak ada cabang yang cocok
+                      Tidak ada bengkel yang cocok
                     </p>
                     <p className="text-[11px] text-slate-400">
                       Coba cari dengan kata kunci &quot;Depok&quot;, &quot;Bogor&quot;, &quot;Jakarta&quot;, atau jenis servis seperti &quot;AC&quot;, &quot;Oli&quot;.
@@ -721,11 +650,9 @@ export function BranchMapModal({ isOpen, onClose, initialBranchId }: BranchMapMo
           <div className="flex-1 overflow-y-auto overscroll-contain">
             {/* Header City & Workshop Photo Banner */}
             <div className="relative h-36 sm:h-44 bg-slate-900 overflow-hidden shrink-0 flex items-end p-4 group/banner">
-              <img
-                src={activeBranch.image}
-                alt={activeBranch.name}
-                className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover/banner:scale-105"
-              />
+              <div className="absolute inset-0">
+                <WorkshopFront decorative cover />
+              </div>
               <div className="absolute inset-0 bg-gradient-to-t from-slate-950/95 via-slate-950/40 to-transparent" />
 
               <div className="relative z-10 text-white space-y-1">
@@ -873,11 +800,12 @@ export function BranchMapModal({ isOpen, onClose, initialBranchId }: BranchMapMo
               </div>
             </div>
 
-            {/* Daftar Cabang Lainnya Selector */}
+            {/* Daftar lokasi lain: hanya bila ada lebih dari satu bengkel */}
+            {SERVICEGO_BRANCHES.length > 1 && (
             <div className="p-4 space-y-2.5 bg-slate-50/50 dark:bg-slate-950/20">
               <div className="flex items-center justify-between">
                 <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                  Cabang Lainnya ({filteredBranches.length})
+                  Lokasi lain ({filteredBranches.length})
                 </p>
                 <span className="text-[10px] text-slate-400 font-medium">Klik untuk pilih</span>
               </div>
@@ -896,11 +824,9 @@ export function BranchMapModal({ isOpen, onClose, initialBranchId }: BranchMapMo
                           : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-primary-300'
                       )}
                     >
-                      <img
-                        src={branch.image}
-                        alt={branch.name}
-                        className="w-14 h-14 rounded-lg object-cover shrink-0 border border-slate-200/80 dark:border-slate-700"
-                      />
+                      <span className="w-14 h-14 rounded-lg overflow-hidden shrink-0 border border-slate-200/80 dark:border-slate-700">
+                        <WorkshopSmall decorative cover />
+                      </span>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-1">
                           <span className="font-bold text-xs text-slate-800 dark:text-slate-100 truncate">
@@ -925,11 +851,12 @@ export function BranchMapModal({ isOpen, onClose, initialBranchId }: BranchMapMo
 
                 {filteredBranches.length === 0 && (
                   <div className="p-4 text-center text-xs text-slate-400 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
-                    Tidak ada cabang yang cocok dengan filter atau pencarian ini.
+                    Tidak ada bengkel yang cocok dengan filter atau pencarian ini.
                   </div>
                 )}
               </div>
             </div>
+            )}
           </div>
         </div>
 
@@ -963,6 +890,7 @@ export function BranchMapModal({ isOpen, onClose, initialBranchId }: BranchMapMo
           </button>
 
           {/* Floating Pill Filters at the top of the map (Like GMaps: Restoran, Hotel, etc.) */}
+          {SERVICEGO_BRANCHES.length > 1 && (
           <div className="absolute top-4 left-4 z-10 flex items-center gap-2 overflow-x-auto max-w-[calc(100%-80px)] p-1">
             {(['All', 'Jakarta', 'Depok', 'Bogor'] as const).map((city) => {
               const count =
@@ -983,7 +911,7 @@ export function BranchMapModal({ isOpen, onClose, initialBranchId }: BranchMapMo
                       : 'bg-white/95 dark:bg-slate-900/95 text-slate-700 dark:text-slate-200 border-slate-200/80 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'
                   )}
                 >
-                  <span>{city === 'All' ? 'Semua Cabang' : city}</span>
+                  <span>{city === 'All' ? 'Semua lokasi' : city}</span>
                   <span
                     className={clsx(
                       'text-[10px] px-1.5 py-0.2 rounded-full font-bold',
@@ -998,6 +926,7 @@ export function BranchMapModal({ isOpen, onClose, initialBranchId }: BranchMapMo
               );
             })}
           </div>
+          )}
 
           {/* Floating Close Button at top right of map canvas */}
           <button
@@ -1012,11 +941,9 @@ export function BranchMapModal({ isOpen, onClose, initialBranchId }: BranchMapMo
           {/* Quick Floating Active Branch Card at Bottom of Map */}
           <div className="absolute bottom-4 left-4 right-4 z-10 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-2xl border border-slate-200/90 dark:border-slate-800 p-3 shadow-2xl flex items-center justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
-              <img
-                src={activeBranch.image}
-                alt={activeBranch.name}
-                className="w-11 h-11 rounded-xl object-cover shrink-0 border border-slate-200 dark:border-slate-700"
-              />
+              <span className="w-11 h-11 rounded-xl overflow-hidden shrink-0 border border-slate-200 dark:border-slate-700">
+                <WorkshopSmall decorative cover />
+              </span>
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="h-2 w-2 rounded-full bg-blue-600 animate-pulse shrink-0" />

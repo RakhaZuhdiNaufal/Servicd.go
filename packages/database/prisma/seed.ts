@@ -22,88 +22,34 @@ const DUMMY_AUTH_ID_CUSTOMER_2 = '00000000-0000-0000-0000-000000000003';
 async function main() {
   console.log('Seeding database ServiceGo...');
 
-  // 1. Branches (5 Official Locations: 2 Depok, 1 Bogor, 2 Jakarta)
-  const branch1 = await prisma.branch.upsert({
-    where: { id: '11111111-1111-1111-1111-111111111111' },
-    update: {
-      name: 'ServiceGo Kebon Jeruk (Jakarta Barat)',
-      address: 'Jl. Raya Perjuangan No. 88, Kebon Jeruk, Jakarta Barat'
-    },
-    create: {
-      id: '11111111-1111-1111-1111-111111111111',
-      name: 'ServiceGo Kebon Jeruk (Jakarta Barat)',
-      address: 'Jl. Raya Perjuangan No. 88, Kebon Jeruk, Jakarta Barat',
-      phone: '021-5551234',
-      capacity_per_slot: 3
-    }
+  // 1. Branch: ServiceGo hanya punya SATU bengkel.
+  const BRANCH_ID = '11111111-1111-1111-1111-111111111113';
+  const branchData = {
+    name: 'ServiceGo Depok',
+    address: 'Jl. Margonda Raya No. 45, Beji, Kota Depok',
+    phone: '021-77201234',
+    capacity_per_slot: 3
+  };
+  const branch = await prisma.branch.upsert({
+    where: { id: BRANCH_ID },
+    update: branchData,
+    create: { id: BRANCH_ID, ...branchData }
   });
 
-  const branch2 = await prisma.branch.upsert({
-    where: { id: '11111111-1111-1111-1111-111111111112' },
-    update: {
-      name: 'ServiceGo Fatmawati (Jakarta Selatan)',
-      address: 'Jl. RS Fatmawati Raya No. 15, Cilandak, Jakarta Selatan'
-    },
-    create: {
-      id: '11111111-1111-1111-1111-111111111112',
-      name: 'ServiceGo Fatmawati (Jakarta Selatan)',
-      address: 'Jl. RS Fatmawati Raya No. 15, Cilandak, Jakarta Selatan',
-      phone: '021-7661234',
-      capacity_per_slot: 3
-    }
+  // Data lama dari seed sebelumnya (5 cabang): pindahkan mekanik & booking ke bengkel ini,
+  // lalu hapus cabang lain. Aman dijalankan berulang kali.
+  await prisma.mechanic.updateMany({ where: { branch_id: { not: BRANCH_ID } }, data: { branch_id: BRANCH_ID } });
+  await prisma.booking.updateMany({
+    where: { AND: [{ branch_id: { not: null } }, { branch_id: { not: BRANCH_ID } }] },
+    data: { branch_id: BRANCH_ID }
   });
-
-  const branch3 = await prisma.branch.upsert({
-    where: { id: '11111111-1111-1111-1111-111111111113' },
-    update: {
-      name: 'ServiceGo Margonda Depok',
-      address: 'Jl. Margonda Raya No. 45, Pondok Cina, Beji, Kota Depok'
-    },
-    create: {
-      id: '11111111-1111-1111-1111-111111111113',
-      name: 'ServiceGo Margonda Depok',
-      address: 'Jl. Margonda Raya No. 45, Pondok Cina, Beji, Kota Depok',
-      phone: '021-77201234',
-      capacity_per_slot: 3
-    }
-  });
-
-  const branch4 = await prisma.branch.upsert({
-    where: { id: '11111111-1111-1111-1111-111111111114' },
-    update: {
-      name: 'ServiceGo Cinere Depok',
-      address: 'Jl. Cinere Raya No. 12, Cinere, Kota Depok'
-    },
-    create: {
-      id: '11111111-1111-1111-1111-111111111114',
-      name: 'ServiceGo Cinere Depok',
-      address: 'Jl. Cinere Raya No. 12, Cinere, Kota Depok',
-      phone: '021-75405678',
-      capacity_per_slot: 3
-    }
-  });
-
-  const branch5 = await prisma.branch.upsert({
-    where: { id: '11111111-1111-1111-1111-111111111115' },
-    update: {
-      name: 'ServiceGo Pajajaran Bogor',
-      address: 'Jl. Raya Pajajaran No. 28, Bantarjati, Kota Bogor'
-    },
-    create: {
-      id: '11111111-1111-1111-1111-111111111115',
-      name: 'ServiceGo Pajajaran Bogor',
-      address: 'Jl. Raya Pajajaran No. 28, Bantarjati, Kota Bogor',
-      phone: '0251-8321456',
-      capacity_per_slot: 3
-    }
-  });
-  console.log(`5 ServiceGo Branches seeded.`);
-  const branch = branch1;
+  const removed = await prisma.branch.deleteMany({ where: { id: { not: BRANCH_ID } } });
+  console.log(`Branch seeded: ${branch.name} (1 bengkel${removed.count ? `, ${removed.count} cabang lama dihapus` : ''}).`);
 
   // 2. Mechanics
   const mechanic1 = await prisma.mechanic.upsert({
     where: { id: '22222222-2222-2222-2222-222222222221' },
-    update: {},
+    update: { branch_id: branch.id },
     create: {
       id: '22222222-2222-2222-2222-222222222221',
       branch_id: branch.id,
@@ -115,7 +61,7 @@ async function main() {
 
   const mechanic2 = await prisma.mechanic.upsert({
     where: { id: '22222222-2222-2222-2222-222222222222' },
-    update: {},
+    update: { branch_id: branch.id },
     create: {
       id: '22222222-2222-2222-2222-222222222222',
       branch_id: branch.id,

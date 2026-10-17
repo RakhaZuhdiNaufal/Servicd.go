@@ -1,181 +1,349 @@
 'use client';
 
-import { Car, Bike, MapPin, ChevronRight, Loader2 } from 'lucide-react';
-import { Vehicle, Service, Branch } from './types';
+import Link from 'next/link';
+import { Loader2, LogIn, Tag, X } from 'lucide-react';
+import { clsx } from 'clsx';
+import { formatDate, formatDuration, formatRp } from '@/lib/format';
+import { Plate } from '@/components/customer/plate';
+import { Vehicle, Service, Branch, PromoInfo } from './types';
 
-interface BookingSummaryProps {
+interface SummaryData {
   activeVehicle: Vehicle | null;
   activeServicesList: Service[];
   activeBranch: Branch | null;
   selectedDate: string;
   selectedTime: string;
   totalCost: number;
+  totalDuration: number;
+  promoDiscount: number;
+  finalCost: number;
+  appliedPromo: PromoInfo | null;
+}
+
+export interface PromoFieldProps {
+  promoInput: string;
+  onPromoInputChange: (v: string) => void;
+  appliedPromo: PromoInfo | null;
+  promoError: string | null;
+  promoLoading: boolean;
+  onApplyPromo: () => void;
+  onRemovePromo: () => void;
+  idPrefix?: string;
+}
+
+/** Kolom kode promo. Diskon divalidasi lagi di server saat booking dibuat. */
+export function PromoField({
+  promoInput,
+  onPromoInputChange,
+  appliedPromo,
+  promoError,
+  promoLoading,
+  onApplyPromo,
+  onRemovePromo,
+  idPrefix = 'promo'
+}: PromoFieldProps) {
+  const inputId = `${idPrefix}-kode`;
+  const errorId = `${idPrefix}-error`;
+
+  if (appliedPromo) {
+    return (
+      <div className="flex items-center justify-between gap-3 rounded-ctl border border-emerald-200 bg-emerald-50 py-1.5 pl-3 pr-1.5 dark:border-emerald-900 dark:bg-emerald-950/40">
+        <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm">
+          <Tag className="h-4 w-4 shrink-0 text-emerald-700 dark:text-emerald-300" aria-hidden />
+          <span className="rounded-plate bg-slate-900 px-2 py-0.5 font-mono text-[13px] font-semibold tracking-wide text-white ring-1 ring-inset ring-white/25 dark:bg-slate-950">
+            <span className="sr-only">Kode promo </span>
+            {appliedPromo.code}
+          </span>
+          <span className="text-emerald-900 dark:text-emerald-100">diskon {appliedPromo.discount_percent}% dipakai</span>
+        </div>
+        <button
+          type="button"
+          onClick={onRemovePromo}
+          aria-label={`Hapus kode promo ${appliedPromo.code}`}
+          className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-ctl text-emerald-800 transition-colors hover:bg-emerald-100 dark:text-emerald-200 dark:hover:bg-emerald-900/50"
+        >
+          <X className="h-4 w-4" aria-hidden />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <form
+      className="space-y-1.5"
+      onSubmit={(e) => {
+        e.preventDefault();
+        onApplyPromo();
+      }}
+    >
+      <label htmlFor={inputId} className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+        Kode promo <span className="font-normal text-slate-600 dark:text-slate-400">(opsional)</span>
+      </label>
+      <div className="flex gap-2">
+        <input
+          id={inputId}
+          value={promoInput}
+          onChange={(e) => onPromoInputChange(e.target.value)}
+          placeholder="Contoh: HEMAT20"
+          autoComplete="off"
+          aria-invalid={!!promoError}
+          aria-describedby={promoError ? errorId : undefined}
+          className={clsx(
+            'h-12 min-w-0 flex-1 rounded-ctl border bg-white px-3.5 font-mono text-[15px] uppercase text-slate-900 placeholder:font-sans placeholder:normal-case placeholder:text-slate-500 dark:bg-slate-900 dark:text-white',
+            promoError ? 'border-red-500 dark:border-red-500' : 'border-slate-300 dark:border-slate-700'
+          )}
+        />
+        <button
+          type="submit"
+          disabled={promoLoading}
+          className="h-12 shrink-0 rounded-ctl border border-slate-300 bg-white px-4 text-[15px] font-semibold text-slate-900 transition-colors hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:hover:bg-slate-800"
+        >
+          Pakai
+        </button>
+      </div>
+      {promoError && (
+        <p id={errorId} className="text-[13px] text-red-700 dark:text-red-300" role="alert">
+          {promoError}
+        </p>
+      )}
+    </form>
+  );
+}
+
+interface ActionProps {
+  isGuest: boolean;
+  loginHref: string;
   isSubmitting: boolean;
   isSubmitDisabled: boolean;
+  missingHint: string | null;
   onSubmit: () => void;
 }
 
-const formatRp = (v: number | string) => {
-  const num = typeof v === 'string' ? parseFloat(v) : v;
-  return new Intl.NumberFormat('id-ID', {
-    style: 'currency',
-    currency: 'IDR',
-    maximumFractionDigits: 0
-  }).format(Number.isFinite(num) ? num : 0);
-};
+function dateLabel(date: string) {
+  if (!date) return null;
+  return formatDate(new Date(`${date}T00:00:00`), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+}
 
-export function BookingSummary({
+/**
+ * Satu-satunya tombol aksen oranye di halaman booking. Untuk tamu, tombol ini diganti
+ * link masuk (biru) karena booking butuh akun.
+ */
+export function ConfirmButton({
+  isGuest,
+  loginHref,
+  isSubmitting,
+  isSubmitDisabled,
+  onSubmit,
+  className,
+  compact = false,
+  onDark = false
+}: Omit<ActionProps, 'missingHint'> & { className?: string; compact?: boolean; onDark?: boolean }) {
+  const size = compact ? 'min-h-[48px] px-4 text-[15px]' : 'min-h-[52px] px-6 text-[17px]';
+  if (isGuest) {
+    return (
+      <Link
+        href={loginHref}
+        className={clsx(
+          'inline-flex items-center justify-center gap-2 rounded-ctl bg-primary-600 font-bold text-white transition-colors hover:bg-primary-700',
+          size,
+          className
+        )}
+      >
+        <LogIn className="h-5 w-5" aria-hidden />
+        {compact ? 'Masuk' : 'Masuk untuk booking'}
+      </Link>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={onSubmit}
+      disabled={isSubmitDisabled}
+      className={clsx(
+        'inline-flex items-center justify-center gap-2 rounded-ctl bg-accent-500 font-bold text-slate-950 transition-colors hover:bg-accent-600 disabled:cursor-not-allowed',
+        onDark
+          ? 'disabled:bg-slate-700 disabled:text-slate-300'
+          : 'disabled:bg-slate-200 disabled:text-slate-600 dark:disabled:bg-slate-800 dark:disabled:text-slate-400',
+        size,
+        className
+      )}
+    >
+      {isSubmitting ? (
+        <>
+          <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
+          Membuat booking...
+        </>
+      ) : (
+        'Konfirmasi booking'
+      )}
+    </button>
+  );
+}
+
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1 py-3.5 first:pt-0">
+      <dt className="text-[13px] font-semibold text-slate-600 dark:text-slate-400">{label}</dt>
+      <dd className="text-[15px] text-slate-900 dark:text-white">{children}</dd>
+    </div>
+  );
+}
+
+function Empty({ children }: { children: React.ReactNode }) {
+  return <span className="text-slate-600 dark:text-slate-400">{children}</span>;
+}
+
+/** Rincian pilihan. Dipakai di kartu ringkasan desktop dan di ringkasan akhir versi mobile. */
+export function SummaryDetails({
   activeVehicle,
   activeServicesList,
   activeBranch,
   selectedDate,
-  selectedTime,
-  totalCost,
-  isSubmitting,
-  isSubmitDisabled,
-  onSubmit
-}: BookingSummaryProps) {
-  const formattedDateString = selectedDate
-    ? new Date(selectedDate).toLocaleDateString('id-ID', {
-        weekday: 'long',
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric'
-      })
-    : 'Pilih Tanggal';
-
-  const VehicleIcon =
-    activeVehicle &&
-    (activeVehicle.vehicle_type.toLowerCase() === 'motor' ||
-      activeVehicle.vehicle_type.toLowerCase() === 'motorcycle' ||
-      activeVehicle.vehicle_type.toLowerCase() === 'sepeda motor')
-      ? Bike
-      : Car;
-
+  selectedTime
+}: Omit<SummaryData, 'totalCost' | 'totalDuration' | 'promoDiscount' | 'finalCost' | 'appliedPromo'>) {
   return (
-    <div className="sticky top-24">
-      <div className="rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 sm:p-6 shadow-sm space-y-5">
-        <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-          <h3 className="text-base font-bold text-slate-900 dark:text-white">Ringkasan Booking</h3>
-          <span className="text-xs font-semibold text-primary-600 bg-primary-50 dark:bg-primary-950 px-2.5 py-0.5 rounded-full">
-            Pratinjau
-          </span>
-        </div>
-
-        {/* Vehicle Preview */}
+    <dl className="divide-y divide-slate-200 dark:divide-slate-800">
+      <Row label="Kendaraan">
         {activeVehicle ? (
-          <div className="flex items-center gap-3.5 pb-4 border-b border-slate-100 dark:border-slate-800">
-            <div className="h-11 w-12 rounded-xl bg-blue-50 dark:bg-blue-950 flex items-center justify-center text-primary-600 shrink-0">
-              <VehicleIcon className="h-6 w-6" />
-            </div>
-            <div className="min-w-0">
-              <h4 className="text-sm font-bold text-slate-900 dark:text-white truncate">
-                {activeVehicle.brand} {activeVehicle.model}
-              </h4>
-              <p className="text-xs text-slate-500 mt-0.5 capitalize">
-                {activeVehicle.plate_number} · {activeVehicle.year ? `${activeVehicle.year} · ` : ''}
-                {activeVehicle.vehicle_type}
-              </p>
-            </div>
-          </div>
+          <span className="flex flex-wrap items-center gap-2">
+            <Plate number={activeVehicle.plate_number} size="md" />
+            <span className="font-semibold capitalize">
+              {activeVehicle.brand} {activeVehicle.model}
+            </span>
+          </span>
         ) : (
-          <div className="flex items-center gap-3.5 pb-4 border-b border-slate-100 dark:border-slate-800">
-            <div className="h-11 w-12 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 shrink-0">
-              <Car className="h-6 w-6" />
-            </div>
-            <div>
-              <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300">Belum Ada Kendaraan</h4>
-              <p className="text-xs text-slate-400 mt-0.5">Pilih atau daftarkan kendaraan Anda</p>
-            </div>
-          </div>
+          <Empty>Belum dipilih</Empty>
         )}
-
-        {/* Selected Services */}
-        <div className="space-y-2.5 pb-4 border-b border-slate-100 dark:border-slate-800">
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Layanan Dipilih</p>
-          {activeServicesList.length === 0 ? (
-            <p className="text-xs text-slate-400 italic">Belum ada layanan dipilih</p>
-          ) : (
-            activeServicesList.map((s) => (
-              <div key={s.id} className="flex items-start justify-between text-xs gap-3">
-                <span className="font-medium text-slate-800 dark:text-slate-200 leading-snug">
-                  {s.name}
-                </span>
-                <div className="text-right shrink-0">
-                  <span className="font-mono font-bold text-slate-900 dark:text-white">
-                    {formatRp(s.price)}
-                  </span>
-                  <span className="text-[10px] text-slate-400 block">{s.duration_minutes} mnt</span>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-
-        {/* Bengkel Selection */}
-        <div className="space-y-1 pb-4 border-b border-slate-100 dark:border-slate-800">
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Bengkel Tujuan</p>
-          {activeBranch ? (
-            <>
-              <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
-                {activeBranch.name}
-              </p>
-              <p className="text-xs text-slate-500 truncate">{activeBranch.address}</p>
-              <p className="text-xs text-slate-400 flex items-center gap-1 mt-1">
-                <MapPin className="h-3 w-3 text-slate-400" />
-                <span>{activeBranch.distance || '1.2 km'}</span>
-              </p>
-            </>
-          ) : (
-            <p className="text-xs text-slate-400 italic">Belum memilih cabang bengkel</p>
-          )}
-        </div>
-
-        {/* Jadwal Selection */}
-        <div className="space-y-1 pb-4 border-b border-slate-100 dark:border-slate-800">
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Waktu & Jadwal</p>
-          <p className="text-sm font-bold text-slate-900 dark:text-white">{formattedDateString}</p>
-          <p className="text-xs text-slate-500 font-mono">
-            {selectedTime ? `Pukul ${selectedTime} WIB` : 'Pilih slot jam kedatangan'}
-          </p>
-        </div>
-
-        {/* Estimasi Biaya Total */}
-        <div className="pt-1 space-y-1.5">
-          <div className="flex items-baseline justify-between gap-4">
-            <span className="text-sm font-bold text-slate-700 dark:text-slate-300 shrink-0">
-              Estimasi Total
+      </Row>
+      <Row label="Layanan">
+        {activeServicesList.length === 0 ? (
+          <Empty>Belum dipilih</Empty>
+        ) : (
+          <ul className="space-y-1.5">
+            {activeServicesList.map((s) => (
+              <li key={s.id} className="flex items-start justify-between gap-3">
+                <span>{s.name}</span>
+                <span className="shrink-0 text-slate-700 dark:text-slate-300">{formatRp(s.price)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Row>
+      <Row label="Bengkel">
+        {activeBranch ? (
+          <span className="font-semibold">{activeBranch.name}</span>
+        ) : (
+          <Empty>Belum dipilih</Empty>
+        )}
+      </Row>
+      <Row label="Jadwal datang">
+        {selectedDate ? (
+          <>
+            {dateLabel(selectedDate)}
+            <span className="block text-slate-700 dark:text-slate-300">
+              {selectedTime ? `Pukul ${selectedTime} WIB` : 'Jam belum dipilih'}
             </span>
-            <span className="font-mono text-xl font-extrabold text-primary-600 dark:text-primary-400 text-right">
-              {formatRp(totalCost)}
-            </span>
+          </>
+        ) : (
+          <Empty>Belum dipilih</Empty>
+        )}
+      </Row>
+    </dl>
+  );
+}
+
+/** Blok biaya di panel gelap: subtotal, potongan promo, dan estimasi akhir. */
+function CostBlock({
+  totalCost,
+  totalDuration,
+  promoDiscount,
+  finalCost,
+  appliedPromo
+}: Pick<SummaryData, 'totalCost' | 'totalDuration' | 'promoDiscount' | 'finalCost' | 'appliedPromo'>) {
+  return (
+    <div className="space-y-1">
+      {appliedPromo && totalCost > 0 && (
+        <dl className="mb-3 space-y-1.5 border-b border-slate-700 pb-3 text-sm">
+          <div className="flex justify-between gap-3">
+            <dt className="text-slate-300">Subtotal layanan</dt>
+            <dd className="text-white">{formatRp(totalCost)}</dd>
           </div>
-          <p className="text-[11px] text-slate-400 leading-relaxed">
-            Harga dapat berubah tergantung kondisi suku cadang saat pemeriksaan fisik oleh mekanik.
+          <div className="flex justify-between gap-3">
+            <dt className="text-slate-300">Diskon {appliedPromo.code}</dt>
+            <dd className="font-semibold text-emerald-300">-{formatRp(promoDiscount)}</dd>
+          </div>
+        </dl>
+      )}
+      <p className="text-sm font-semibold text-slate-300">Estimasi biaya</p>
+      <p className="text-[32px] font-extrabold leading-tight tracking-[-0.015em] text-white">{formatRp(finalCost)}</p>
+      <p className="text-[13px] leading-relaxed text-slate-300">
+        {totalDuration > 0 ? `Perkiraan pengerjaan ${formatDuration(totalDuration)}. ` : ''}
+        Biaya akhir bisa berubah setelah mekanik memeriksa kendaraan.
+      </p>
+    </div>
+  );
+}
+
+/**
+ * Kartu ringkasan sticky di kolom kanan (desktop). Bagian bawahnya panel gelap berisi
+ * estimasi dan tombol konfirmasi: jeda ritme halaman dan titik fokus aksi utama.
+ */
+export function BookingSummary(props: SummaryData & ActionProps & { promo: PromoFieldProps }) {
+  const { totalCost, totalDuration, promoDiscount, finalCost, appliedPromo, missingHint, promo, ...rest } = props;
+  return (
+    <aside
+      aria-label="Ringkasan booking"
+      className="sticky top-24 overflow-hidden rounded-[20px] border border-slate-200 bg-white shadow-[0_24px_48px_-24px_rgba(15,23,42,0.25)] dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/40"
+    >
+      <div className="space-y-5 p-6">
+        <h2 className="text-[24px] font-extrabold tracking-[-0.01em] text-slate-900 dark:text-white">Ringkasan</h2>
+        <SummaryDetails {...props} />
+        <div className="border-t border-slate-200 pt-5 dark:border-slate-800">
+          <PromoField {...promo} idPrefix="promo-desktop" />
+        </div>
+      </div>
+      <div className="space-y-4 bg-slate-900 p-6 text-white dark:bg-slate-950 dark:ring-1 dark:ring-inset dark:ring-slate-800">
+        <CostBlock
+          totalCost={totalCost}
+          totalDuration={totalDuration}
+          promoDiscount={promoDiscount}
+          finalCost={finalCost}
+          appliedPromo={appliedPromo}
+        />
+        <ConfirmButton {...rest} onDark className="w-full" />
+        {missingHint && (
+          <p className="text-center text-[13px] text-slate-300" aria-live="polite">
+            {missingHint}
+          </p>
+        )}
+      </div>
+    </aside>
+  );
+}
+
+/** Bar ringkas di bawah layar (mobile), di atas navigasi bawah. */
+export function MobileBookingBar(props: SummaryData & ActionProps) {
+  const { totalCost, totalDuration, finalCost, appliedPromo, promoDiscount, activeServicesList, missingHint, ...rest } = props;
+  return (
+    <div
+      aria-label="Ringkasan biaya"
+      role="region"
+      className="sticky bottom-16 z-30 lg:hidden -mx-4 border-t border-slate-200 bg-white px-4 py-3 shadow-[0_-4px_16px_rgba(15,23,42,0.06)] dark:border-slate-800 dark:bg-slate-900 sm:-mx-6 sm:px-6 md:bottom-0"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[13px] text-slate-600 dark:text-slate-400">
+            Estimasi{activeServicesList.length > 0 ? `, ${activeServicesList.length} layanan` : ''}
+            {appliedPromo ? `, diskon ${appliedPromo.discount_percent}%` : ''}
+          </p>
+          <p className="truncate text-xl font-extrabold tracking-[-0.01em] text-slate-900 dark:text-white">
+            {formatRp(finalCost)}
+          </p>
+          <p className="truncate text-[13px] text-slate-600 dark:text-slate-400">
+            {missingHint ?? (totalDuration > 0 ? `Sekitar ${formatDuration(totalDuration)}` : 'Siap dikonfirmasi')}
           </p>
         </div>
-
-        {/* Submit Action Button */}
-        <div className="pt-2">
-          <button
-            type="button"
-            onClick={onSubmit}
-            disabled={isSubmitDisabled}
-            className="w-full rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold text-sm py-3.5 shadow-md shadow-orange-500/25 transition active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-          >
-            {isSubmitting ? (
-              <span className="flex items-center gap-2">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <span>Memproses Booking…</span>
-              </span>
-            ) : (
-              <>
-                <span>Konfirmasi Booking</span>
-                <ChevronRight className="h-4 w-4" />
-              </>
-            )}
-          </button>
-        </div>
+        <ConfirmButton {...rest} compact className="shrink-0" />
       </div>
     </div>
   );

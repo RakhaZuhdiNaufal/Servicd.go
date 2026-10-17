@@ -1,84 +1,115 @@
 'use client';
 
+import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
-import { supabase } from '@/lib/supabase-client';
-import { toast } from 'sonner';
+import { useEffect, useState } from 'react';
 import { Eye, EyeOff, Wrench } from 'lucide-react';
+import { clsx } from 'clsx';
+import { supabase } from '@/lib/supabase-client';
+import { useAuth } from '@/lib/auth-context';
+import { ThemeToggle } from '@/components/theme-toggle';
 
 const schema = z.object({
-  email: z.string().email('Email tidak valid'),
+  email: z.string().email('Format email belum benar'),
   password: z.string().min(6, 'Password minimal 6 karakter')
 });
 type Form = z.infer<typeof schema>;
 
+const input =
+  'h-11 w-full rounded-ctl border bg-white px-3 text-[15px] text-slate-900 placeholder:text-slate-500 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500 transition-colors';
+
+function friendlyAuthError(msg: string) {
+  if (/invalid login credentials/i.test(msg)) return 'Email atau password salah.';
+  if (/email not confirmed/i.test(msg)) return 'Email akun ini belum dikonfirmasi.';
+  if (/fetch|network/i.test(msg)) return 'Tidak bisa terhubung ke server. Cek koneksi internet.';
+  if (/rate limit|too many/i.test(msg)) return 'Terlalu banyak percobaan. Tunggu sebentar lalu coba lagi.';
+  return msg;
+}
+
 export default function AdminLoginPage() {
   const router = useRouter();
+  const { session, role, loading } = useAuth();
   const [showPw, setShowPw] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting }
   } = useForm<Form>({ resolver: zodResolver(schema) });
 
+  // Admin yang sudah masuk langsung diarahkan ke dashboard
+  useEffect(() => {
+    if (!loading && session && role === 'admin') router.replace('/admin/dashboard');
+  }, [loading, session, role, router]);
+
   async function onSubmit({ email, password }: Form) {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    setFormError(null);
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
-      toast.error(error.message);
+      setFormError(friendlyAuthError(error.message));
+      return;
+    }
+    // Role dari app_metadata (diisi server). Akun pelanggan tidak diteruskan ke panel admin.
+    if (data.user?.app_metadata?.role === 'customer') {
+      await supabase.auth.signOut();
+      setFormError('Akun ini akun pelanggan, bukan akun admin. Pelanggan masuk lewat halaman Masuk biasa.');
       return;
     }
     router.replace('/admin/dashboard');
   }
 
   return (
-    <div className="flex min-h-screen">
-      {/* Left — brand panel */}
-      <div className="hidden lg:flex flex-col justify-center items-center bg-primary-900 text-white w-1/2 px-16 gap-6">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="h-12 w-12 rounded-xl bg-white/10 flex items-center justify-center">
-            <Wrench className="h-7 w-7" />
-          </div>
-          <span className="text-2xl font-bold">ServiceGo</span>
+    <div className="flex min-h-dvh flex-col bg-slate-50 dark:bg-slate-950">
+      <header className="flex h-16 items-center justify-between px-4 sm:px-6">
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-8 w-8 items-center justify-center rounded-chip bg-primary-600 text-white">
+            <Wrench className="h-4 w-4" aria-hidden />
+          </span>
+          <span className="flex items-baseline gap-1.5">
+            <span className="text-[16px] font-bold tracking-tight text-slate-900 dark:text-white">
+              Service<span className="text-primary-600 dark:text-primary-500">Go</span>
+            </span>
+            <span className="text-[13px] font-medium text-slate-600 dark:text-slate-400">Admin</span>
+          </span>
         </div>
-        <h1 className="text-4xl font-extrabold leading-tight text-center">
-          Precision &amp; Control<br />untuk Tim Bengkel
-        </h1>
-        <p className="text-primary-200 text-center max-w-xs">
-          Kelola booking, pantau status servis, dan koordinasi mekanik — semua dari satu dashboard.
-        </p>
-      </div>
+        <ThemeToggle />
+      </header>
 
-      {/* Right — form */}
-      <div className="flex flex-1 items-center justify-center bg-[var(--bg-base)] px-6">
-        <div className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-lg shadow-md p-8 space-y-6">
-          <div>
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Masuk Admin</h2>
-            <p className="text-sm text-slate-500 mt-1">Gunakan akun admin bengkel Anda</p>
+      <main className="flex flex-1 items-start justify-center px-4 pb-16 pt-6 sm:items-center sm:pt-0">
+        <div className="w-full max-w-[400px] space-y-6 rounded-2xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900 sm:p-8">
+          <div className="space-y-1.5">
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Masuk ke panel admin</h1>
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              Khusus staf bengkel ServiceGo untuk mengelola booking, mekanik, dan chat pelanggan.
+            </p>
           </div>
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <div className="space-y-1">
-              <label htmlFor="email" className="text-sm font-medium text-slate-700 dark:text-slate-300">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
+            <div>
+              <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-slate-800 dark:text-slate-200">
                 Email
               </label>
               <input
                 id="email"
                 type="email"
                 autoComplete="email"
+                inputMode="email"
+                aria-invalid={!!errors.email}
+                aria-describedby={errors.email ? 'email-error' : undefined}
                 {...register('email')}
-                className="w-full rounded-sm border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2.5 text-sm outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition"
-                placeholder="admin@bengkel.id"
+                className={clsx(input, errors.email ? 'border-red-600 dark:border-red-500' : 'border-slate-300 dark:border-slate-700')}
+                placeholder="nama@bengkel.id"
               />
               {errors.email && (
-                <p className="text-xs text-red-500">{errors.email.message}</p>
+                <p id="email-error" className="mt-1 text-[13px] text-red-700 dark:text-red-300">{errors.email.message}</p>
               )}
             </div>
 
-            <div className="space-y-1">
-              <label htmlFor="password" className="text-sm font-medium text-slate-700 dark:text-slate-300">
+            <div>
+              <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-slate-800 dark:text-slate-200">
                 Password
               </label>
               <div className="relative">
@@ -86,34 +117,49 @@ export default function AdminLoginPage() {
                   id="password"
                   type={showPw ? 'text' : 'password'}
                   autoComplete="current-password"
+                  aria-invalid={!!errors.password}
+                  aria-describedby={errors.password ? 'password-error' : undefined}
                   {...register('password')}
-                  className="w-full rounded-sm border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2.5 pr-10 text-sm outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition"
-                  placeholder="••••••••"
+                  className={clsx(input, 'pr-12', errors.password ? 'border-red-600 dark:border-red-500' : 'border-slate-300 dark:border-slate-700')}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPw((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                   aria-label={showPw ? 'Sembunyikan password' : 'Tampilkan password'}
+                  aria-pressed={showPw}
+                  className="absolute right-0 top-0 inline-flex h-11 w-11 items-center justify-center rounded-ctl text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors"
                 >
-                  {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {showPw ? <EyeOff className="h-4 w-4" aria-hidden /> : <Eye className="h-4 w-4" aria-hidden />}
                 </button>
               </div>
               {errors.password && (
-                <p className="text-xs text-red-500">{errors.password.message}</p>
+                <p id="password-error" className="mt-1 text-[13px] text-red-700 dark:text-red-300">{errors.password.message}</p>
               )}
             </div>
+
+            {formError && (
+              <p role="alert" className="rounded-ctl border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
+                {formError}
+              </p>
+            )}
 
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full rounded-md bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2.5 text-sm transition disabled:opacity-50 disabled:cursor-not-allowed"
+              className="inline-flex h-11 w-full items-center justify-center rounded-ctl bg-primary-600 text-[15px] font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-60 transition-colors"
             >
-              {isSubmitting ? 'Masuk…' : 'Masuk'}
+              {isSubmitting ? 'Memeriksa akun...' : 'Masuk'}
             </button>
           </form>
+
+          <p className="border-t border-slate-200 pt-4 text-sm text-slate-600 dark:border-slate-800 dark:text-slate-400">
+            Pelanggan?{' '}
+            <Link href="/login" className="font-semibold text-primary-700 hover:underline dark:text-primary-100">
+              Masuk di portal pelanggan
+            </Link>
+          </p>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

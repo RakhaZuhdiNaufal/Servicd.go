@@ -1,136 +1,143 @@
 'use client';
 
 import Link from 'next/link';
-import { Car, Bike, Plus, ChevronRight, Check } from 'lucide-react';
-import { clsx } from 'clsx';
+import { Car, Bike, Plus, LogIn } from 'lucide-react';
+import { Plate } from '@/components/customer/plate';
+import { EmptyState, ErrorState } from '@/components/customer/states';
 import { Vehicle } from './types';
 import { VehicleSkeleton } from './booking-skeletons';
+import { StepSection, optionClass, SelectIndicator } from './booking-stepper';
 
 interface VehicleSelectorProps {
+  isGuest: boolean;
+  authLoading: boolean;
+  loginHref: string;
   vehicles: Vehicle[];
   isLoading: boolean;
+  isError: boolean;
+  onRetry: () => void;
   selectedVehicle: string;
   onSelectVehicle: (id: string) => void;
+  active: boolean;
+  done: boolean;
+}
+
+export function isMotor(type: string) {
+  const t = type.toLowerCase();
+  return t === 'motor' || t === 'motorcycle' || t === 'sepeda motor';
 }
 
 export function VehicleSelector({
+  isGuest,
+  authLoading,
+  loginHref,
   vehicles,
   isLoading,
+  isError,
+  onRetry,
   selectedVehicle,
-  onSelectVehicle
+  onSelectVehicle,
+  active,
+  done
 }: VehicleSelectorProps) {
-  const getVehicleIcon = (type: string) => {
-    const t = type.toLowerCase();
-    if (t === 'motor' || t === 'motorcycle' || t === 'sepeda motor') {
-      return Bike;
-    }
-    return Car;
-  };
+  const showManage = !isGuest && !authLoading && vehicles.length > 0;
 
   return (
-    <section className="rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 sm:p-6 shadow-sm space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="h-8 w-8 rounded-xl bg-blue-50 dark:bg-blue-950 text-primary-600 flex items-center justify-center font-bold text-sm">
-            1
-          </div>
-          <div>
-            <h2 className="text-base font-bold text-slate-900 dark:text-white">Pilih Kendaraan</h2>
-            <p className="text-xs text-slate-500">Pilih kendaraan terdaftar yang akan diservis</p>
-          </div>
-        </div>
-        <Link
-          href="/profile"
-          className="text-xs text-primary-600 font-semibold hover:underline flex items-center gap-1"
-        >
-          <span>Kelola</span>
-          <ChevronRight className="h-3 w-3" />
-        </Link>
-      </div>
-
-      {isLoading ? (
-        <VehicleSkeleton count={2} />
-      ) : vehicles.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-slate-300 dark:border-slate-700 p-6 text-center space-y-3">
-          <div className="h-12 w-12 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 mx-auto">
-            <Car className="h-6 w-6" />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
-              Belum ada kendaraan terdaftar
-            </p>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Tambahkan kendaraan Anda terlebih dahulu sebelum melakukan booking servis.
-            </p>
-          </div>
+    <StepSection
+      stepKey="kendaraan"
+      number={1}
+      title="Kendaraan mana yang diservis?"
+      description={isGuest ? 'Kendaraan diambil dari akun kamu.' : 'Pilih salah satu kendaraan di akun kamu.'}
+      active={active}
+      done={done}
+      aside={
+        showManage ? (
           <Link
             href="/profile"
-            className="inline-flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-xl bg-primary-600 text-white hover:bg-primary-700 transition shadow-sm"
+            className="inline-flex min-h-[44px] items-center rounded-ctl px-2 text-sm font-semibold text-primary-700 hover:underline dark:text-primary-100"
           >
-            <Plus className="h-4 w-4" />
-            <span>Tambah Kendaraan</span>
+            Kelola
           </Link>
+        ) : undefined
+      }
+    >
+      {authLoading || isLoading ? (
+        <VehicleSkeleton count={2} />
+      ) : isGuest ? (
+        <div className="flex flex-col gap-4 rounded-2xl bg-slate-50 p-5 dark:bg-slate-800/60 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-1">
+            <p className="text-[17px] font-bold text-slate-900 dark:text-white">Masuk dulu untuk memilih kendaraan</p>
+            <p className="text-[15px] text-slate-600 dark:text-slate-400">
+              Layanan, bengkel, dan jam kosong di bawah tetap bisa kamu lihat sekarang.
+            </p>
+          </div>
+          <div className="flex shrink-0 gap-2">
+            <Link
+              href={loginHref}
+              className="inline-flex min-h-[44px] items-center gap-2 rounded-ctl bg-primary-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-primary-700"
+            >
+              <LogIn className="h-4 w-4" aria-hidden />
+              Masuk
+            </Link>
+            <Link
+              href="/register"
+              className="inline-flex min-h-[44px] items-center rounded-ctl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-800 transition-colors hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
+            >
+              Daftar
+            </Link>
+          </div>
         </div>
+      ) : isError ? (
+        <ErrorState title="Daftar kendaraan belum bisa dimuat" onRetry={onRetry} />
+      ) : vehicles.length === 0 ? (
+        <EmptyState
+          icon={Car}
+          title="Belum ada kendaraan di akun kamu"
+          description="Tambahkan kendaraan di halaman profil, lalu kembali ke sini untuk booking."
+          action={{ label: 'Tambah kendaraan', href: '/profile' }}
+        />
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div className="grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label="Pilih kendaraan">
           {vehicles.map((v) => {
-            const isSelected = selectedVehicle === v.id;
-            const Icon = getVehicleIcon(v.vehicle_type);
-
+            const selected = selectedVehicle === v.id;
+            const Icon = isMotor(v.vehicle_type) ? Bike : Car;
             return (
-              <div
+              <button
                 key={v.id}
+                type="button"
+                role="radio"
+                aria-checked={selected}
                 onClick={() => onSelectVehicle(v.id)}
-                className={clsx(
-                  'rounded-xl border p-4 flex flex-col justify-between gap-3 cursor-pointer transition duration-150 relative min-h-[124px]',
-                  isSelected
-                    ? 'border-primary-500 bg-primary-50/40 dark:bg-primary-950/30 ring-2 ring-primary-500/20 shadow-sm'
-                    : 'border-slate-200 dark:border-slate-800 hover:border-primary-300 bg-white dark:bg-slate-900'
-                )}
+                className={optionClass(selected)}
               >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="h-9 w-9 rounded-lg bg-blue-50 dark:bg-blue-950 flex items-center justify-center text-primary-600 shrink-0">
-                    <Icon className="h-4.5 w-4.5" />
-                  </div>
-                  <div
-                    className={clsx(
-                      'h-5 w-5 rounded-full flex items-center justify-center shrink-0 transition',
-                      isSelected
-                        ? 'bg-primary-600 text-white shadow-sm'
-                        : 'border-2 border-slate-300 dark:border-slate-600'
-                    )}
-                  >
-                    {isSelected && <Check className="h-3 w-3 stroke-[3]" />}
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-white leading-snug truncate capitalize">
-                    {v.brand} {v.model}
-                  </h3>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                      {v.plate_number}
+                <SelectIndicator selected={selected} />
+                <span className="min-w-0 flex-1 space-y-2">
+                  <span className="flex items-center gap-2">
+                    <Icon className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" aria-hidden />
+                    <span className="truncate text-[17px] font-bold capitalize text-slate-900 dark:text-white">
+                      {v.brand} {v.model}
                     </span>
-                    <span className="text-[11px] text-slate-400 capitalize">
-                      {v.year ? `${v.year} · ` : ''}{v.vehicle_type}
+                  </span>
+                  <span className="flex flex-wrap items-center gap-2">
+                    <Plate number={v.plate_number} size="md" />
+                    <span className="text-[13px] capitalize text-slate-600 dark:text-slate-400">
+                      {v.year ? `${v.year}, ` : ''}
+                      {v.vehicle_type}
                     </span>
-                  </div>
-                </div>
-              </div>
+                  </span>
+                </span>
+              </button>
             );
           })}
-
-          {/* + Tambah Kendaraan Card */}
           <Link
             href="/profile"
-            className="rounded-xl border border-dashed border-slate-300 dark:border-slate-700 hover:border-primary-400 p-4 flex flex-col items-center justify-center gap-1.5 text-slate-400 hover:text-primary-600 transition min-h-[124px]"
+            className="flex min-h-[52px] items-center justify-center gap-2 rounded-2xl border border-dashed border-slate-300 p-4 text-[15px] font-semibold text-slate-700 transition-colors hover:border-slate-400 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
           >
-            <Plus className="h-5 w-5" />
-            <span className="text-xs font-semibold">+ Tambah Kendaraan</span>
+            <Plus className="h-4 w-4" aria-hidden />
+            Tambah kendaraan
           </Link>
         </div>
       )}
-    </section>
+    </StepSection>
   );
 }

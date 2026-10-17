@@ -2,17 +2,7 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@servicego/database';
 import { availableSlotsQuerySchema } from '@servicego/shared';
 import { apiSuccess, apiError } from '@/lib/response';
-
-const OPERATING_SLOTS = [
-  '08:00',
-  '09:00',
-  '10:00',
-  '11:00',
-  '13:00',
-  '14:00',
-  '15:00',
-  '16:00'
-];
+import { OPERATING_SLOTS, wibDateTime, wibDayRange } from '@/lib/wib';
 
 export async function GET(request: NextRequest) {
   try {
@@ -47,9 +37,8 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Rentang tanggal dari 00:00:00 sampai 23:59:59
-    const startOfDay = new Date(`${date}T00:00:00.000Z`);
-    const endOfDay = new Date(`${date}T23:59:59.999Z`);
+    // Rentang satu hari penuh dalam WIB (bukan UTC), sama dengan zona jam slot.
+    const { start: startOfDay, end: endOfDay } = wibDayRange(date);
 
     // Cari booking aktif (bukan dibatalkan) pada hari tersebut
     const existingBookings = await prisma.booking.findMany({
@@ -74,15 +63,9 @@ export async function GET(request: NextRequest) {
 
     // Hitung per slot jam
     const slots = OPERATING_SLOTS.map((timeStr) => {
-      const [hours, minutes] = timeStr.split(':').map(Number);
-      const slotTime = new Date(Date.UTC(
-        parseInt(date.substring(0, 4)),
-        parseInt(date.substring(5, 7)) - 1,
-        parseInt(date.substring(8, 10)),
-        hours,
-        minutes,
-        0
-      ));
+      // Jam slot adalah jam WIB, sama dengan yang dikirim form booking (offset +07:00).
+      const slotTime = wibDateTime(date, timeStr);
+      const isPast = slotTime.getTime() <= Date.now();
 
       // Hitung booking yang overlap dengan window slot ini: slotTime ± (duration / 2)
       const bookedCount = existingBookings.filter((b) => {
@@ -90,7 +73,7 @@ export async function GET(request: NextRequest) {
         return Math.abs(bTime.getTime() - slotTime.getTime()) < halfDurationMs;
       }).length;
 
-      const remaining = Math.max(0, capacityPerSlot - bookedCount);
+      const remaining = isPast ? 0 : Math.max(0, capacityPerSlot - bookedCount);
 
       return {
         time: timeStr,

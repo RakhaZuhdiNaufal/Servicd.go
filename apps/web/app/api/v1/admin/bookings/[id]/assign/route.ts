@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { prisma, BookingStatus } from '@servicego/database';
 import { assignMechanicSchema } from '@servicego/shared';
 import { apiSuccess, apiError } from '@/lib/response';
+import { getAuthenticatedUser } from '@/lib/auth';
 
 export async function PATCH(
   request: NextRequest,
@@ -9,9 +10,16 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params;
+    const user = await getAuthenticatedUser(request);
+    if (!user || !user.profileId) {
+      return apiError('Profil admin tidak ditemukan', 404);
+    }
 
     const booking = await prisma.booking.findUnique({
-      where: { id }
+      where: { id },
+      include: {
+        mechanic: { select: { id: true, full_name: true } }
+      }
     });
 
     if (!booking) {
@@ -54,12 +62,35 @@ export async function PATCH(
       return apiError('Mekanik ini sudah memiliki jadwal servis aktif pada jam tersebut', 409);
     }
 
-    const updated = await prisma.booking.update({
-      where: { id },
-      data: { mechanic_id },
-      include: {
-        mechanic: true
-      }
+    if (booking.mechanic_id === mechanic_id) {
+      return apiError(`${mechanic.full_name} sudah ditugaskan ke booking ini`, 409);
+    }
+
+    const previous = booking.mechanic;
+    const note = previous
+      ? `Mekanik diganti: ${previous.full_name} ke ${mechanic.full_name}`
+      : `Mekanik ditugaskan: ${mechanic.full_name}`;
+
+    // Update mekanik + catat di riwayat status dalam satu transaksi (status booking tidak berubah)
+    const updated = await prisma.$transaction(async (tx) => {
+      const updatedBooking = await tx.booking.update({
+        where: { id },
+        data: { mechanic_id },
+        include: {
+          mechanic: true
+        }
+      });
+
+      await tx.bookingStatusHistory.create({
+        data: {
+          booking_id: id,
+          status: booking.status,
+          changed_by: user.profileId,
+          note
+        }
+      });
+
+      return updatedBooking;
     });
 
     return apiSuccess(updated, `Mekanik ${mechanic.full_name} berhasil ditugaskan ke booking`);

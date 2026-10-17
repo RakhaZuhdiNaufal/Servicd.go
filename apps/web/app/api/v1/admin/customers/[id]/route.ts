@@ -51,11 +51,29 @@ export async function DELETE(
       return apiError('Pelanggan tidak ditemukan', 404);
     }
 
-    await prisma.profile.delete({
-      where: { id }
-    });
+    // Booking menyimpan riwayat servis dan pembayaran; vehicles -> bookings memakai onDelete: Restrict,
+    // jadi pelanggan yang sudah pernah booking tidak dihapus. Tabel profiles belum punya kolom nonaktif.
+    const bookingCount = await prisma.booking.count({ where: { customer_id: id } });
+    if (bookingCount > 0) {
+      return apiError(
+        `Pelanggan ini punya ${bookingCount} riwayat booking, jadi tidak bisa dihapus agar riwayat servis dan pembayarannya tetap utuh. Ubah datanya saja bila perlu, atau biarkan akunnya tanpa booking baru.`,
+        409,
+        { booking_count: bookingCount }
+      );
+    }
 
-    return apiSuccess(null, 'Pelanggan berhasil dihapus');
+    // Tanpa booking: hapus kendaraan dulu, lalu profil, dalam satu transaksi
+    const [deletedVehicles] = await prisma.$transaction([
+      prisma.vehicle.deleteMany({ where: { owner_id: id } }),
+      prisma.profile.delete({ where: { id } })
+    ]);
+
+    return apiSuccess(
+      { vehicles_deleted: deletedVehicles.count },
+      deletedVehicles.count > 0
+        ? `Pelanggan dan ${deletedVehicles.count} kendaraannya berhasil dihapus`
+        : 'Pelanggan berhasil dihapus'
+    );
   } catch (error: any) {
     return apiError(error.message || 'Gagal menghapus data pelanggan', 500);
   }

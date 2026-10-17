@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { prisma, BookingStatus } from '@servicego/database';
 import { apiSuccess, apiError } from '@/lib/response';
+import { isIsoDate, wibDayRange } from '@/lib/wib';
 
 export async function GET(request: NextRequest) {
   try {
@@ -19,13 +20,19 @@ export async function GET(request: NextRequest) {
       whereClause.status = statusParam as BookingStatus;
     }
 
+    // Tanggal filter (YYYY-MM-DD) dibaca sebagai hari kalender WIB, bukan UTC,
+    // supaya booking jam 00:00 sampai 06:59 WIB tidak jatuh ke hari sebelumnya.
+    if ((startDateParam && !isIsoDate(startDateParam)) || (endDateParam && !isIsoDate(endDateParam))) {
+      return apiError('Format tanggal harus YYYY-MM-DD', 422);
+    }
+
     if (startDateParam || endDateParam) {
       whereClause.scheduled_at = {};
       if (startDateParam) {
-        whereClause.scheduled_at.gte = new Date(`${startDateParam}T00:00:00.000Z`);
+        whereClause.scheduled_at.gte = wibDayRange(startDateParam).start;
       }
       if (endDateParam) {
-        whereClause.scheduled_at.lte = new Date(`${endDateParam}T23:59:59.999Z`);
+        whereClause.scheduled_at.lte = wibDayRange(endDateParam).end;
       }
     }
 

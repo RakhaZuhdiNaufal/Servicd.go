@@ -3,6 +3,25 @@ import { prisma } from '@servicego/database';
 import { createServiceSchema } from '@servicego/shared';
 import { apiSuccess, apiError } from '@/lib/response';
 
+// GET /api/v1/admin/services?is_active=true|false
+// Berbeda dengan GET /api/v1/services (publik, hanya aktif): admin melihat layanan nonaktif juga.
+export async function GET(request: NextRequest) {
+  try {
+    const isActiveParam = new URL(request.url).searchParams.get('is_active');
+    const where =
+      isActiveParam === 'true' ? { is_active: true } : isActiveParam === 'false' ? { is_active: false } : {};
+
+    const services = await prisma.service.findMany({
+      where,
+      orderBy: [{ is_active: 'desc' }, { price: 'asc' }]
+    });
+
+    return apiSuccess(services, 'Daftar layanan admin berhasil diambil');
+  } catch (error: any) {
+    return apiError(error.message || 'Gagal mengambil data layanan', 500);
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
