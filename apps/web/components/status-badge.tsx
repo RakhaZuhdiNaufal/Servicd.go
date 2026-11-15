@@ -1,13 +1,18 @@
-import { Clock, Wrench, CheckCircle, XCircle, CreditCard } from 'lucide-react';
+import { Clock, CalendarCheck, Wrench, CheckCircle, XCircle } from 'lucide-react';
 import { clsx } from 'clsx';
 
-type Status = 'menunggu' | 'diproses' | 'selesai' | 'dibatalkan';
+type Status = 'menunggu' | 'dikonfirmasi' | 'diproses' | 'selesai' | 'dibatalkan';
 
 const CONFIG: Record<Status, { icon: React.ElementType; label: string; cls: string }> = {
   menunggu: {
     icon: Clock,
     label: 'Menunggu Konfirmasi',
     cls: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800'
+  },
+  dikonfirmasi: {
+    icon: CalendarCheck,
+    label: 'Dikonfirmasi',
+    cls: 'bg-sky-50 text-sky-800 border-sky-200 dark:bg-sky-950 dark:text-sky-300 dark:border-sky-800'
   },
   diproses: {
     icon: Wrench,

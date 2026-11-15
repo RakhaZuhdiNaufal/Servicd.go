@@ -43,6 +43,9 @@ AGENTS.md
 # Database SQL DDL & Dump
 supabase_schema.sql
 *.sql
+# Kebijakan keamanan (RLS) WAJIB ikut versi kode. Dump data tetap diabaikan.
+!supabase/
+!supabase/*.sql
 
 # Logs
 npm-debug.log*

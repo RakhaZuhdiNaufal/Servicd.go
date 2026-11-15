@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { prisma, UserRole } from '@servicego/database';
 import { createCustomerSchema } from '@servicego/shared';
-import { apiSuccess, apiError } from '@/lib/response';
+import { apiSuccess, apiError, apiCatch } from '@/lib/response';
 
 export async function GET(request: NextRequest) {
   try {
@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
       'Daftar pelanggan berhasil diambil'
     );
   } catch (error: any) {
-    return apiError(error.message || 'Gagal mengambil data pelanggan', 500);
+    return apiCatch(error, 'Gagal mengambil data pelanggan');
   }
 }
 
@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
 
     // Cek email duplikat
     const existing = await prisma.profile.findFirst({
-      where: { email }
+      where: { email: { equals: email, mode: 'insensitive' } }
     });
 
     if (existing) {
@@ -92,6 +92,6 @@ export async function POST(request: NextRequest) {
 
     return apiSuccess(customer, 'Pelanggan walk-in berhasil ditambahkan', 201);
   } catch (error: any) {
-    return apiError(error.message || 'Gagal menambahkan pelanggan', 500);
+    return apiCatch(error, 'Gagal menambahkan pelanggan');
   }
 }

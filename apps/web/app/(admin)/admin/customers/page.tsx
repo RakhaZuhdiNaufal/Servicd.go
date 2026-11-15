@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -67,6 +67,11 @@ export default function CustomersPage() {
     queryFn: () =>
       fetcher(`/admin/customers?page=${page}&limit=20${search ? `&search=${encodeURIComponent(search)}` : ''}`)
   });
+
+  // Hapus item terakhir di halaman terakhir: halaman itu kosong dan pager ikut hilang. Mundur ke halaman yang ada.
+  useEffect(() => {
+    if (data && page > 1 && page > data.meta.total_pages) setPage(Math.max(1, data.meta.total_pages));
+  }, [data, page]);
 
   const {
     register,

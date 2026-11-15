@@ -20,6 +20,7 @@ enum VehicleType {
 
 enum BookingStatus {
   menunggu
+  dikonfirmasi
   diproses
   selesai
   dibatalkan
@@ -150,7 +151,7 @@ model BookingStatusHistory {
   changed_at DateTime      @default(now())
 
   booking Booking @relation(fields: [booking_id], references: [id], onDelete: Cascade)
-  changer Profile @relation(fields: [changed_by], references: [id], onDelete: Cascade)
+  changer Profile @relation(fields: [changed_by], references: [id], onDelete: Restrict) // audit trail: profil pengubah tidak boleh menghapus riwayat
 
   @@map("booking_status_history")
 }
@@ -239,7 +240,7 @@ model Payment {
 // Model di sini supaya Prisma mengenal tabelnya (prisma db push tidak menganggapnya drift).
 // Klien membaca/menulis langsung lewat Supabase (RLS), bukan lewat API Prisma.
 model SupportConversation {
-  id                 String   @id @default(uuid()) @db.Uuid
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid // browser insert tanpa id: default harus di DB
   customer_id        String   @db.Uuid
   customer_name      String   @default("")
   customer_email     String   @default("")
@@ -258,7 +259,7 @@ model SupportConversation {
 }
 
 model SupportMessage {
-  id              String   @id @default(uuid()) @db.Uuid
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   conversation_id String   @db.Uuid
   sender_type     String
   sender_id       String?  @db.Uuid

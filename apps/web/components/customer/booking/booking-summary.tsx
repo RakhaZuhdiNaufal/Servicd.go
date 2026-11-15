@@ -121,7 +121,7 @@ interface ActionProps {
 
 function dateLabel(date: string) {
   if (!date) return null;
-  return formatDate(new Date(`${date}T00:00:00`), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  return formatDate(new Date(`${date}T00:00:00+07:00`), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 }
 
 /**

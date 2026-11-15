@@ -88,7 +88,6 @@ servicego/
 ├── packages/
 │   ├── shared/                      # Zod validation schemas, TypeScript interfaces & konstanta
 │   └── database/                    # Skema Prisma (12 tabel), database client singleton & seed
-├── prisma/                          # Prisma seed wrapper
 ├── turbo.json                       # Konfigurasi pipeline build & task Turborepo
 ├── pnpm-workspace.yaml              # Definisi paket monorepo
 └── package.json                     # Root scripts & tooling dependencies
@@ -158,8 +157,13 @@ pnpm prisma:generate
 pnpm prisma:migrate
 
 # Jalankan seeder (Cabang, Layanan Default, Mekanik, Sampel Kendaraan)
+# Ditolak bila NODE_ENV=production (kecuali ALLOW_SEED=1).
 pnpm prisma:seed
 ```
+
+**Wajib: kebijakan keamanan Supabase.** Browser memegang anon key yang publik, jadi tanpa RLS semua tabel bisa dibaca/diubah lewat REST Supabase. Setelah migrasi, jalankan berurutan di Supabase SQL Editor (keduanya aman dijalankan ulang):
+1. `supabase/rls_core.sql`: RLS semua tabel inti + Realtime `bookings`.
+2. `supabase/support_chat.sql`: tabel, trigger, RPC, RLS, dan Realtime Live CS.
 
 ### 5. Menjalankan Server Development
 ```bash

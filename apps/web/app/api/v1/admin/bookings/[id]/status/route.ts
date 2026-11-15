@@ -1,8 +1,17 @@
 import { NextRequest } from 'next/server';
 import { prisma, BookingStatus, NotificationChannel } from '@servicego/database';
-import { updateBookingStatusSchema } from '@servicego/shared';
-import { apiSuccess, apiError } from '@/lib/response';
+import { updateBookingStatusSchema, bookingStatusBlockReason } from '@servicego/shared';
+import { apiSuccess, apiError, apiCatch, HttpError } from '@/lib/response';
 import { getAuthenticatedUser } from '@/lib/auth';
+
+// Kalimat notifikasi pelanggan per status baru.
+const STATUS_MESSAGE: Record<BookingStatus, string> = {
+  menunggu: 'Booking kamu sedang menunggu konfirmasi bengkel.',
+  dikonfirmasi: 'Booking kamu sudah dikonfirmasi bengkel. Datang sesuai jadwal ya.',
+  diproses: 'Kendaraan kamu sedang dikerjakan mekanik.',
+  selesai: 'Servis kendaraan kamu sudah selesai dan siap diambil.',
+  dibatalkan: 'Booking kamu dibatalkan oleh bengkel.'
+};
 
 export async function PATCH(
   request: NextRequest,
@@ -32,15 +41,28 @@ export async function PATCH(
 
     const { status, note } = parsed.data;
 
+    const blocked = bookingStatusBlockReason(booking.status, status, booking.scheduled_at);
+    if (blocked) {
+      return apiError(blocked, 409);
+    }
+
     // Jalankan dalam transaksi: Update booking + Insert row baru ke BookingStatusHistory
     const updated = await prisma.$transaction(async (tx) => {
-      const updatedBooking = await tx.booking.update({
-        where: { id },
+      // Update bersyarat status lama: kalau admin lain sudah mengubahnya duluan, batal (tidak saling timpa).
+      const { count } = await tx.booking.updateMany({
+        where: { id, status: booking.status },
         data: {
           status: status as BookingStatus,
-          final_cost: status === BookingStatus.selesai && !booking.final_cost ? booking.estimated_cost : undefined
+          final_cost: status === BookingStatus.selesai && !booking.final_cost ? booking.estimated_cost : undefined,
+          // Booking batal melepas mekaniknya, supaya jam itu bisa ditugaskan ke booking lain
+          // (constraint unik mechanic_id + scheduled_at).
+          ...(status === BookingStatus.dibatalkan ? { mechanic_id: null } : {})
         }
       });
+      if (count === 0) {
+        throw new HttpError('Status booking baru saja diubah oleh admin lain. Muat ulang lalu coba lagi.', 409);
+      }
+      const updatedBooking = await tx.booking.findUniqueOrThrow({ where: { id } });
 
       // Simpan riwayat perubahan status (audit trail)
       await tx.bookingStatusHistory.create({
@@ -57,7 +79,7 @@ export async function PATCH(
         data: {
           user_id: booking.customer_id,
           title: 'Pembaruan Status Booking',
-          body: `Status booking kendaraan Anda kini: ${status.toUpperCase()}.${note ? ` Catatan: ${note}` : ''}`,
+          body: `${STATUS_MESSAGE[status]}${note ? ` Catatan: ${note}` : ''}`,
           sent_channel: NotificationChannel.push
         }
       });
@@ -67,6 +89,6 @@ export async function PATCH(
 
     return apiSuccess(updated, `Status booking berhasil diubah menjadi ${status}`);
   } catch (error: any) {
-    return apiError(error.message || 'Gagal mengubah status booking', 500);
+    return apiCatch(error, 'Gagal mengubah status booking');
   }
 }

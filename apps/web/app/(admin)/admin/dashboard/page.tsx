@@ -12,7 +12,7 @@ import { EmptyState, ErrorState, SkeletonBlock } from '@/components/customer/sta
 import { useSupportUnread } from '@/components/admin/use-support-unread';
 import { adminSchedule, toNumber } from '@/components/admin/format';
 
-type BookingStatus = 'menunggu' | 'diproses' | 'selesai' | 'dibatalkan';
+type BookingStatus = 'menunggu' | 'dikonfirmasi' | 'diproses' | 'selesai' | 'dibatalkan';
 
 // Bentuk data dari GET /api/v1/admin/dashboard/summary
 interface Summary {
@@ -33,6 +33,7 @@ interface Summary {
 
 const STATUS_ORDER: Array<{ key: BookingStatus; label: string; bar: string }> = [
   { key: 'menunggu', label: 'Menunggu', bar: 'bg-amber-500' },
+  { key: 'dikonfirmasi', label: 'Dikonfirmasi', bar: 'bg-sky-500' },
   { key: 'diproses', label: 'Diproses', bar: 'bg-primary-600' },
   { key: 'selesai', label: 'Selesai', bar: 'bg-green-600' },
   { key: 'dibatalkan', label: 'Dibatalkan', bar: 'bg-red-600' }

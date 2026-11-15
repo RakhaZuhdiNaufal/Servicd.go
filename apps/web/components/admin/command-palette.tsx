@@ -15,7 +15,7 @@ interface Booking {
   id: string;
   customer: { full_name: string };
   vehicle: { plate_number: string; brand?: string; model?: string };
-  status: 'menunggu' | 'diproses' | 'selesai' | 'dibatalkan';
+  status: 'menunggu' | 'dikonfirmasi' | 'diproses' | 'selesai' | 'dibatalkan';
   scheduled_at: string;
 }
 

@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@servicego/database';
-import { apiSuccess, apiError } from '@/lib/response';
+import { apiSuccess, apiError, apiCatch } from '@/lib/response';
 import { z } from 'zod';
 
 const createMechanicSchema = z.object({
@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
 
     return apiSuccess(formatted, 'Daftar mekanik berhasil diambil');
   } catch (error: any) {
-    return apiError(error.message || 'Gagal mengambil data mekanik', 500);
+    return apiCatch(error, 'Gagal mengambil data mekanik');
   }
 }
 
@@ -96,6 +96,6 @@ export async function POST(request: NextRequest) {
 
     return apiSuccess(mechanic, 'Mekanik berhasil ditambahkan', 201);
   } catch (error: any) {
-    return apiError(error.message || 'Gagal menambahkan mekanik', 500);
+    return apiCatch(error, 'Gagal menambahkan mekanik');
   }
 }

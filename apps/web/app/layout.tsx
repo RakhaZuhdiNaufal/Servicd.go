@@ -6,7 +6,7 @@ import { Plus_Jakarta_Sans, JetBrains_Mono } from 'next/font/google';
 // Plus Jakarta Sans: typeface buatan Tokotype (Jakarta), ramah & mudah dibaca di layar kecil. Lihat DESIGN.md.
 const jakarta = Plus_Jakarta_Sans({
   subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
+  weight: ['400', '500', '600', '700', '800'], // 800 = font-extrabold (judul)
   variable: '--font-sans',
   display: 'swap'
 });

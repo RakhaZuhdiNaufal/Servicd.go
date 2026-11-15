@@ -20,6 +20,10 @@ const DUMMY_AUTH_ID_CUSTOMER_1 = '00000000-0000-0000-0000-000000000002';
 const DUMMY_AUTH_ID_CUSTOMER_2 = '00000000-0000-0000-0000-000000000003';
 
 async function main() {
+  // Seed menulis data contoh (profil dummy, booking contoh). Jangan pernah jalan ke produksi tanpa sengaja.
+  if (process.env.NODE_ENV === 'production' && process.env.ALLOW_SEED !== '1') {
+    throw new Error('Seed ditolak: NODE_ENV=production. Set ALLOW_SEED=1 bila benar-benar disengaja.');
+  }
   console.log('Seeding database ServiceGo...');
 
   // 1. Branch: ServiceGo hanya punya SATU bengkel.
@@ -36,15 +40,24 @@ async function main() {
     create: { id: BRANCH_ID, ...branchData }
   });
 
-  // Data lama dari seed sebelumnya (5 cabang): pindahkan mekanik & booking ke bengkel ini,
-  // lalu hapus cabang lain. Aman dijalankan berulang kali.
-  await prisma.mechanic.updateMany({ where: { branch_id: { not: BRANCH_ID } }, data: { branch_id: BRANCH_ID } });
-  await prisma.booking.updateMany({
-    where: { AND: [{ branch_id: { not: null } }, { branch_id: { not: BRANCH_ID } }] },
-    data: { branch_id: BRANCH_ID }
-  });
-  const removed = await prisma.branch.deleteMany({ where: { id: { not: BRANCH_ID } } });
-  console.log(`Branch seeded: ${branch.name} (1 bengkel${removed.count ? `, ${removed.count} cabang lama dihapus` : ''}).`);
+  // Migrasi data lama dari seed 5 cabang: pindahkan mekanik & booking ke bengkel ini, lalu hapus cabang lain.
+  // DESTRUKTIF (mengubah data booking/mekanik nyata), jadi hanya jalan bila diminta eksplisit:
+  //   SEED_CLEANUP_BRANCHES=1 pnpm prisma:seed
+  if (process.env.SEED_CLEANUP_BRANCHES === '1') {
+    await prisma.mechanic.updateMany({ where: { branch_id: { not: BRANCH_ID } }, data: { branch_id: BRANCH_ID } });
+    await prisma.booking.updateMany({
+      where: { AND: [{ branch_id: { not: null } }, { branch_id: { not: BRANCH_ID } }] },
+      data: { branch_id: BRANCH_ID }
+    });
+    const removed = await prisma.branch.deleteMany({ where: { id: { not: BRANCH_ID } } });
+    console.log(`Cabang lama dihapus: ${removed.count}.`);
+  } else {
+    const others = await prisma.branch.count({ where: { id: { not: BRANCH_ID } } });
+    if (others > 0) {
+      console.log(`Ada ${others} cabang lain; dibiarkan. Jalankan dengan SEED_CLEANUP_BRANCHES=1 untuk menggabungkannya.`);
+    }
+  }
+  console.log(`Branch seeded: ${branch.name}.`);
 
   // 2. Mechanics
   const mechanic1 = await prisma.mechanic.upsert({

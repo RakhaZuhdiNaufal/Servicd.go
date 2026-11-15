@@ -35,15 +35,24 @@ export default function CustomerLoginPage() {
   const [formError, setFormError] = useState<string | null>(null);
   // Hanya untuk teks penjelas: datang dari form booking (?redirect=/booking/...)?
   const [fromBooking, setFromBooking] = useState(false);
-  useEffect(() => {
-    const target = new URLSearchParams(window.location.search).get('redirect');
-    setFromBooking(!!target && target.startsWith('/booking'));
-  }, []);
   const {
     register,
     handleSubmit,
+    setValue,
+    setFocus,
     formState: { errors, isSubmitting }
   } = useForm<Form>({ resolver: zodResolver(schema) });
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const target = params.get('redirect');
+    setFromBooking(!!target && target.startsWith('/booking/'));
+    // Baru daftar: email sudah diisi, kursor langsung di password.
+    const email = params.get('email');
+    if (email) {
+      setValue('email', email);
+      setFocus('password');
+    }
+  }, [setValue, setFocus]);
 
   async function onSubmit({ email, password }: Form) {
     setFormError(null);
@@ -55,7 +64,9 @@ export default function CustomerLoginPage() {
       }
       // Kembali ke halaman asal (misal form booking) kalau ada ?redirect=, hanya path internal.
       const target = new URLSearchParams(window.location.search).get('redirect');
-      const safe = target && target.startsWith('/') && !target.startsWith('//') ? target : '/';
+      // Cek origin lewat URL, bukan prefix: browser menormalkan "/\evil.com" jadi "//evil.com".
+      const dest = target ? new URL(target, window.location.origin) : null;
+      const safe = dest && dest.origin === window.location.origin ? dest.pathname + dest.search + dest.hash : '/';
       router.replace(safe);
     } catch (err: any) {
       setFormError(err?.message || 'Server belum bisa dihubungi. Coba lagi sebentar lagi.');

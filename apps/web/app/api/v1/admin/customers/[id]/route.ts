@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server';
 import { prisma, UserRole } from '@servicego/database';
 import { updateCustomerSchema } from '@servicego/shared';
-import { apiSuccess, apiError } from '@/lib/response';
+import { apiSuccess, apiError, apiCatch } from '@/lib/response';
+import { getSupabaseAdmin } from '@/lib/supabase';
 
 export async function PUT(
   request: NextRequest,
@@ -25,6 +26,22 @@ export async function PUT(
       return apiError(parsed.error.errors[0]?.message || 'Validasi gagal', 422, parsed.error.format());
     }
 
+    const newEmail = parsed.data.email;
+    if (newEmail && newEmail.toLowerCase() !== existing.email.toLowerCase()) {
+      // Akun yang daftar sendiri login pakai email di Supabase Auth; mengubah email profil saja
+      // membuat data tidak cocok. Email login hanya boleh diubah pemiliknya.
+      const { error: authError } = await getSupabaseAdmin().auth.admin.getUserById(existing.auth_user_id);
+      if (authError?.status !== 404) {
+        return apiError('Pelanggan ini punya akun login sendiri, jadi emailnya hanya bisa diubah oleh pelanggan tersebut.', 422);
+      }
+      const duplicate = await prisma.profile.findFirst({
+        where: { email: { equals: newEmail, mode: 'insensitive' }, id: { not: id } }
+      });
+      if (duplicate) {
+        return apiError('Email ini sudah dipakai pelanggan lain', 409);
+      }
+    }
+
     const updated = await prisma.profile.update({
       where: { id },
       data: parsed.data
@@ -32,7 +49,7 @@ export async function PUT(
 
     return apiSuccess(updated, 'Data pelanggan berhasil diperbarui');
   } catch (error: any) {
-    return apiError(error.message || 'Gagal memperbarui data pelanggan', 500);
+    return apiCatch(error, 'Gagal memperbarui data pelanggan');
   }
 }
 
@@ -75,6 +92,6 @@ export async function DELETE(
         : 'Pelanggan berhasil dihapus'
     );
   } catch (error: any) {
-    return apiError(error.message || 'Gagal menghapus data pelanggan', 500);
+    return apiCatch(error, 'Gagal menghapus data pelanggan');
   }
 }

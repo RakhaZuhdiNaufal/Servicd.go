@@ -9,12 +9,9 @@ export interface Promo {
   badge?: string;
   description: string;
   discount_percent: number;
-  original_price: number;
-  promo_price: number;
   /** Tanggal terakhir berlaku (YYYY-MM-DD, zona WIB, inklusif). */
   valid_until: string;
-  is_active: boolean;
-  included_items: string[];
+  is_active: boolean;
 }
 
 export const PROMOS: Promo[] = [
@@ -25,16 +22,8 @@ export const PROMOS: Promo[] = [
     badge: 'Paling Populer',
     description: 'Pembersihan ruang bakar, cek 24 titik kendaraan, filter udara, dan uji emisi.',
     discount_percent: 20,
-    original_price: 425000,
-    promo_price: 340000,
     valid_until: '2026-12-31',
-    is_active: true,
-    included_items: [
-      'Tune-up mesin komprehensif',
-      'Pembersihan throttle body & busi',
-      'Scanning kelistrikan OBD2',
-      'Gratis isi angin nitrogen 4 roda'
-    ]
+    is_active: true
   },
   {
     id: 'promo-rem-komplit',
@@ -43,16 +32,8 @@ export const PROMOS: Promo[] = [
     badge: 'Keselamatan Utama',
     description: 'Pembersihan kampas 4 roda, pengurasan minyak rem baru, dan balancing roda depan.',
     discount_percent: 15,
-    original_price: 350000,
-    promo_price: 297500,
     valid_until: '2026-12-31',
-    is_active: true,
-    included_items: [
-      'Bongkar & bersihkan kampas rem',
-      'Flushing minyak rem DOT 3/4',
-      'Pengecekan kebocoran master rem',
-      'Uji pengereman dinamis'
-    ]
+    is_active: true
   },
   {
     id: 'promo-komplit-ac',
@@ -61,16 +42,8 @@ export const PROMOS: Promo[] = [
     badge: 'Hemat Maksimal',
     description: 'Perawatan menyeluruh: servis berkala mesin + pembersihan sistem pendingin kabin.',
     discount_percent: 25,
-    original_price: 650000,
-    promo_price: 487500,
     valid_until: '2026-12-31',
-    is_active: true,
-    included_items: [
-      'Ganti oli full synthetic 4L',
-      'Tune-up & pembersihan injector',
-      'Fogging disinfektan kabin',
-      'Pembersihan filter kabin & kisi AC'
-    ]
+    is_active: true
   }
 ];
 

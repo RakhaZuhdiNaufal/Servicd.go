@@ -50,14 +50,11 @@ interface Promo {
   title: string;
   description: string;
   discount_percent: number;
-  original_price: number;
-  promo_price: number;
   valid_until: string;
   is_active: boolean;
-  included_items: string[];
 }
 
-type BookingStatus = 'menunggu' | 'diproses' | 'selesai' | 'dibatalkan';
+type BookingStatus = 'menunggu' | 'dikonfirmasi' | 'diproses' | 'selesai' | 'dibatalkan';
 
 /** GET /bookings: include vehicle, booking_services.service, mechanic, branch (id, name, address, phone). */
 interface Booking {
@@ -155,7 +152,7 @@ function MemberHome() {
   const firstName = fullName.trim().split(/\s+/)[0];
 
   const active = (bookingsQuery.data ?? [])
-    .filter((b) => b.status === 'menunggu' || b.status === 'diproses')
+    .filter((b) => b.status === 'menunggu' || b.status === 'dikonfirmasi' || b.status === 'diproses')
     .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime());
 
   let subline = 'Ringkasan booking dan kendaraan kamu.';
@@ -199,7 +196,7 @@ function MemberHome() {
 
 // ---------------------------------------------------------------------------
 
-const PROGRESS = ['Diterima', 'Dikerjakan', 'Siap diambil'];
+const PROGRESS = ['Diterima', 'Dikonfirmasi', 'Dikerjakan', 'Siap diambil'];
 
 /** Bagian fokus dashboard: panel lebar untuk booking aktif terdekat, dengan ilustrasi bengkel. */
 function ActiveBookingPanel({
@@ -242,7 +239,7 @@ function ActiveBookingPanel({
 
   if (!next) return null;
 
-  const step = next.status === 'diproses' ? 2 : 1;
+  const step = next.status === 'diproses' ? 3 : next.status === 'dikonfirmasi' ? 2 : 1;
   const services = next.booking_services.map((bs) => bs.service.name).join(', ');
 
   return (
@@ -274,7 +271,7 @@ function ActiveBookingPanel({
           </div>
 
           <div>
-            <div className="grid grid-cols-3 gap-1.5" aria-hidden>
+            <div className="grid grid-cols-4 gap-1.5" aria-hidden>
               {PROGRESS.map((p, i) => (
                 <span
                   key={p}
@@ -282,13 +279,13 @@ function ActiveBookingPanel({
                 />
               ))}
             </div>
-            <ol className="mt-2 grid grid-cols-3 text-[13px] text-slate-600 dark:text-slate-400" aria-label="Tahap servis">
+            <ol className="mt-2 grid grid-cols-4 text-[13px] text-slate-600 dark:text-slate-400" aria-label="Tahap servis">
               {PROGRESS.map((p, i) => (
                 <li
                   key={p}
                   className={clsx(
-                    i === 1 && 'text-center',
-                    i === 2 && 'text-right',
+                    i > 0 && i < PROGRESS.length - 1 && 'text-center',
+                    i === PROGRESS.length - 1 && 'text-right',
                     i === step - 1 && 'font-semibold text-slate-900 dark:text-white'
                   )}
                   aria-current={i === step - 1 ? 'step' : undefined}
@@ -696,24 +693,10 @@ function PromosSection() {
                 <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-400">{p.description}</p>
               </div>
 
-              {p.included_items.length > 0 && (
-                <ul className="space-y-1.5 text-sm text-slate-700 dark:text-slate-300">
-                  {p.included_items.map((item) => (
-                    <li key={item} className="flex gap-2">
-                      <span aria-hidden className="mt-2 h-1 w-1 shrink-0 rounded-full bg-slate-500" />
-                      {item}
-                    </li>
-                  ))}
-                </ul>
-              )}
-
               <div className="mt-auto space-y-3 border-t border-slate-200 pt-4 dark:border-slate-800">
-                <p className="flex flex-wrap items-baseline gap-x-2">
-                  <span className="text-xl font-extrabold text-slate-900 dark:text-white">{formatRp(p.promo_price)}</span>
-                  <span className="text-sm text-slate-600 line-through dark:text-slate-400">
-                    <span className="sr-only">Harga normal </span>
-                    {formatRp(p.original_price)}
-                  </span>
+                {/* Aturan yang benar-benar diterapkan server (promoDiscount): persen dari estimasi layanan pilihan. */}
+                <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                  Potongan {p.discount_percent}% dari estimasi layanan yang kamu pilih saat booking.
                 </p>
                 <p className="inline-flex items-center gap-1.5 text-[13px] text-slate-600 dark:text-slate-400">
                   <Tag className="h-3.5 w-3.5" aria-hidden />

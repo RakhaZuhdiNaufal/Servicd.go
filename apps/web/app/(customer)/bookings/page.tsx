@@ -11,10 +11,9 @@ import { Plate } from '@/components/customer/plate';
 import { EmptyState, ErrorState, SkeletonBlock } from '@/components/customer/states';
 import { bookingCode, formatDate, formatRp, formatTime, shortBranchName } from '@/lib/format';
 
-type BookingStatus = 'menunggu' | 'diproses' | 'selesai' | 'dibatalkan';
+type BookingStatus = 'menunggu' | 'dikonfirmasi' | 'diproses' | 'selesai' | 'dibatalkan';
 type FilterStatus = 'semua' | BookingStatus;
 
-// Bentuk data dari GET /api/v1/bookings (include vehicle, booking_services.service, mechanic, branch).
 interface Booking {
   id: string;
   status: BookingStatus;
@@ -30,6 +29,7 @@ interface Booking {
 const FILTERS: { label: string; value: FilterStatus }[] = [
   { label: 'Semua', value: 'semua' },
   { label: 'Menunggu', value: 'menunggu' },
+  { label: 'Dikonfirmasi', value: 'dikonfirmasi' },
   { label: 'Dikerjakan', value: 'diproses' },
   { label: 'Selesai', value: 'selesai' },
   { label: 'Dibatalkan', value: 'dibatalkan' }
@@ -37,18 +37,20 @@ const FILTERS: { label: string; value: FilterStatus }[] = [
 
 const EMPTY_TEXT: Record<BookingStatus, string> = {
   menunggu: 'Tidak ada booking yang menunggu konfirmasi.',
+  dikonfirmasi: 'Tidak ada booking yang sudah dikonfirmasi.',
   diproses: 'Tidak ada kendaraan yang sedang dikerjakan.',
   selesai: 'Belum ada servis yang selesai.',
   dibatalkan: 'Tidak ada booking yang dibatalkan.'
 };
 
 function isActive(b: Booking) {
-  return b.status === 'menunggu' || b.status === 'diproses';
+  return b.status === 'menunggu' || b.status === 'dikonfirmasi' || b.status === 'diproses';
 }
 
 function activeSentence(b: Booking) {
   const where = b.branch ? ` di ${shortBranchName(b.branch.name)}` : '';
   if (b.status === 'diproses') return `Kendaraan kamu sedang dikerjakan${where}.`;
+  if (b.status === 'dikonfirmasi') return `Booking sudah dikonfirmasi${where}. Datang sesuai jadwal ya.`;
   return `Menunggu konfirmasi bengkel${where}.`;
 }
 
@@ -58,6 +60,7 @@ function serviceNames(b: Booking) {
 
 const PROGRESS: Array<{ status: BookingStatus; label: string }> = [
   { status: 'menunggu', label: 'Diterima' },
+  { status: 'dikonfirmasi', label: 'Dikonfirmasi' },
   { status: 'diproses', label: 'Dikerjakan' },
   { status: 'selesai', label: 'Siap diambil' }
 ];
@@ -90,7 +93,7 @@ function ActiveBookingCard({ b }: { b: Booking }) {
               {formatDate(b.scheduled_at)}, {formatTime(b.scheduled_at)}
             </span>
           </div>
-          <ol className="grid max-w-lg grid-cols-3 gap-2 pt-1" aria-label="Tahap servis">
+          <ol className="grid max-w-lg grid-cols-4 gap-2 pt-1" aria-label="Tahap servis">
             {PROGRESS.map((p, i) => (
               <li key={p.status} className="space-y-1.5" aria-current={i === idx ? 'step' : undefined}>
                 <span
@@ -176,7 +179,7 @@ export default function BookingsPage() {
   });
 
   const counts = useMemo(() => {
-    const c: Record<FilterStatus, number> = { semua: allBookings.length, menunggu: 0, diproses: 0, selesai: 0, dibatalkan: 0 };
+    const c: Record<FilterStatus, number> = { semua: allBookings.length, menunggu: 0, dikonfirmasi: 0, diproses: 0, selesai: 0, dibatalkan: 0 };
     allBookings.forEach((b) => {
       c[b.status] += 1;
     });

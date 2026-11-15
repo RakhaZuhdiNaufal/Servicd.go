@@ -105,8 +105,10 @@ export default function RegisterPage() {
           },
           body: JSON.stringify({ full_name, phone })
         }).catch(() => {});
-        toast.success('Akun berhasil dibuat. Selamat datang di ServiceGo.');
-        router.replace('/');
+        // Sesi dari signUp hanya dipakai untuk menyimpan profil di atas; pengguna tetap masuk lewat halaman login.
+        await supabase.auth.signOut();
+        toast.success('Akun berhasil dibuat. Silakan masuk dengan email dan password kamu.');
+        router.replace(`/login?email=${encodeURIComponent(email)}`);
       } else {
         toast.success('Akun berhasil dibuat. Kalau ada email konfirmasi, buka tautannya dulu, lalu masuk.');
         router.replace('/login');

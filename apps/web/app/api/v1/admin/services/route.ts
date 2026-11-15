@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@servicego/database';
 import { createServiceSchema } from '@servicego/shared';
-import { apiSuccess, apiError } from '@/lib/response';
+import { apiSuccess, apiError, apiCatch } from '@/lib/response';
 
 // GET /api/v1/admin/services?is_active=true|false
 // Berbeda dengan GET /api/v1/services (publik, hanya aktif): admin melihat layanan nonaktif juga.
@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
 
     return apiSuccess(services, 'Daftar layanan admin berhasil diambil');
   } catch (error: any) {
-    return apiError(error.message || 'Gagal mengambil data layanan', 500);
+    return apiCatch(error, 'Gagal mengambil data layanan');
   }
 }
 
@@ -45,6 +45,6 @@ export async function POST(request: NextRequest) {
 
     return apiSuccess(service, 'Layanan berhasil dibuat', 201);
   } catch (error: any) {
-    return apiError(error.message || 'Gagal membuat layanan', 500);
+    return apiCatch(error, 'Gagal membuat layanan');
   }
 }
