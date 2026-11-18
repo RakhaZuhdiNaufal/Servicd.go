@@ -2,9 +2,9 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Home, Clock, Newspaper, User, Wrench, Headphones, CalendarPlus, LogOut } from 'lucide-react';
+import { Home, Clock, Newspaper, User, Wrench, Headphones, CalendarPlus, LogOut, MapPin, Phone } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase-client';
@@ -44,6 +44,63 @@ interface BranchContact {
 function isActive(pathname: string, href: string) {
   if (href === '/') return pathname === '/';
   return pathname === href || pathname.startsWith(href + '/');
+}
+
+/** Wordmark raksasa penutup halaman; muncul naik-memudar saat tergulir ke dalam layar. */
+function GiantWordmark() {
+  const ref = useRef<HTMLParagraphElement>(null);
+  const [shown, setShown] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const io = new IntersectionObserver(([entry]) => setShown(entry.isIntersecting), { rootMargin: '0px 0px -10% 0px' });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
+  return (
+    <p
+      ref={ref}
+      aria-hidden
+      // Ukuran ikut lebar layar supaya selalu pas satu baris.
+      className="select-none overflow-hidden whitespace-nowrap px-4 text-center text-[17vw] font-normal leading-[0.8] tracking-tight text-slate-900 sm:px-6 lg:px-8 dark:text-white"
+    >
+      {'SERVICE GO'.split('').map((huruf, i) => (
+        <span
+          key={i}
+          style={{ transitionDelay: `${i * 70}ms` }}
+          className={clsx(
+            'inline-block transition-[opacity,transform] duration-700 ease-out motion-reduce:transition-none',
+            shown ? 'translate-y-0 opacity-100' : 'translate-y-[0.3em] opacity-0'
+          )}
+        >
+          {huruf === ' ' ? ' ' : huruf}
+        </span>
+      ))}
+    </p>
+  );
+}
+
+/** Layar muat bermerek: logo ServiceGo + lingkaran berputar. */
+function SplashScreen({ label }: { label?: string }) {
+  return (
+    <div
+      role="status"
+      aria-label={label ?? 'Memuat halaman'}
+      className="relative flex min-h-screen flex-col items-center justify-center gap-7 overflow-hidden bg-slate-950"
+    >
+      {/* Cahaya oranye lembut di belakang logo supaya tidak datar. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{ background: 'radial-gradient(520px 320px at 50% 45%, rgba(249,115,22,0.16), transparent 70%)' }}
+      />
+      <img src="/logo-servicego-full.png?v=6" alt="" className="relative h-16 w-auto animate-pulse object-contain sm:h-20" />
+      <div className="relative h-10 w-10 animate-spin rounded-full border-[3px] border-white/15 border-t-accent-500" />
+      {label && <p className="relative text-sm text-slate-400">{label}</p>}
+    </div>
+  );
 }
 
 function Wordmark({ isTransparent = false }: { isTransparent?: boolean }) {
@@ -90,15 +147,13 @@ export function CustomerShell({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
 
-  if (!isPublicPage && (loading || !session)) {
-    return (
-      <div className="min-h-screen bg-[var(--bg-base)] flex items-center justify-center" role="status">
-        <div className="flex flex-col items-center gap-3">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary-600 border-t-transparent" />
-          <p className="text-sm text-slate-600 dark:text-slate-400">Mengarahkan ke halaman masuk...</p>
-        </div>
-      </div>
-    );
+  // Terlihat setiap kali halaman di-refresh, selama sesi masih diperiksa.
+  if (loading) {
+    return <SplashScreen />;
+  }
+
+  if (!isPublicPage && !session) {
+    return <SplashScreen label="Mengarahkan ke halaman masuk..." />;
   }
 
   async function handleSignOut() {
@@ -265,31 +320,24 @@ export function CustomerShell({ children }: { children: React.ReactNode }) {
       </main>
 
       <footer className="bg-white dark:bg-slate-900">
-        <div className="mx-auto max-w-[1440px] px-4 py-10 sm:px-6 lg:px-8">
-          <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="space-y-3">
+        <div className="mx-auto max-w-[1440px] px-4 py-14 sm:px-6 lg:px-8">
+          <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[1.9fr_1fr_1fr_1.5fr] lg:gap-12">
+            <div className="space-y-4">
               <Wordmark />
-              <p className="text-sm text-slate-600 dark:text-slate-400">
-                Booking servis mobil dan motor di bengkel ServiceGo, lalu pantau pengerjaannya dari HP.
+              <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-400">
+                Platform booking servis mobil dan motor di bengkel ServiceGo. Pilih layanan yang kamu butuhkan,
+                ambil jadwal yang masih kosong, dan lihat estimasi biayanya sebelum berangkat. Status pengerjaan
+                bisa dipantau langsung dari HP, dan seluruh riwayat servis kendaraanmu tersimpan rapi di satu akun.
               </p>
-              <button
-                type="button"
-                onClick={() => setIsSupportOpen(true)}
-                className="inline-flex min-h-[44px] items-center gap-2 text-sm font-semibold text-accent-600 hover:underline dark:text-accent-500"
-              >
-                <Headphones className="h-4 w-4" aria-hidden />
-                Tanya CS lewat chat
-              </button>
             </div>
 
             <div>
-              <p className="mb-3 text-sm font-semibold text-slate-900 dark:text-white">Jelajahi</p>
               <ul className="space-y-2 text-sm">
                 {FOOTER_EXPLORE.map(({ href, label }) => (
                   <li key={href}>
                     <Link
                       href={href}
-                      className="text-slate-600 hover:text-slate-900 hover:underline dark:text-slate-400 dark:hover:text-white"
+                      className="text-slate-600 transition-colors hover:text-accent-600 dark:text-slate-400 dark:hover:text-accent-500"
                     >
                       {label}
                     </Link>
@@ -299,7 +347,6 @@ export function CustomerShell({ children }: { children: React.ReactNode }) {
             </div>
 
             <div>
-              <p className="mb-3 text-sm font-semibold text-slate-900 dark:text-white">Akun</p>
               <ul className="space-y-2 text-sm">
                 {(session
                   ? [
@@ -315,7 +362,7 @@ export function CustomerShell({ children }: { children: React.ReactNode }) {
                   <li key={href}>
                     <Link
                       href={href}
-                      className="text-slate-600 hover:text-slate-900 hover:underline dark:text-slate-400 dark:hover:text-white"
+                      className="text-slate-600 transition-colors hover:text-accent-600 dark:text-slate-400 dark:hover:text-accent-500"
                     >
                       {label}
                     </Link>
@@ -325,7 +372,6 @@ export function CustomerShell({ children }: { children: React.ReactNode }) {
             </div>
 
             <div>
-              <p className="mb-3 text-sm font-semibold text-slate-900 dark:text-white">Hubungi bengkel</p>
               {branchesQuery.isLoading && <p className="text-sm text-slate-500">Memuat kontak bengkel...</p>}
               {branchesQuery.isError && (
                 <p className="text-sm text-slate-600 dark:text-slate-400">Kontak bengkel belum bisa dimuat.</p>
@@ -334,17 +380,20 @@ export function CustomerShell({ children }: { children: React.ReactNode }) {
                 <p className="text-sm text-slate-600 dark:text-slate-400">Belum ada bengkel terdaftar.</p>
               )}
               {branchesQuery.data && branchesQuery.data.length === 1 && (
-                <div className="space-y-1 text-sm">
-                  <p className="font-semibold text-slate-900 dark:text-white">{branchesQuery.data[0].name}</p>
+                <div className="space-y-2.5 text-sm">
                   {branchesQuery.data[0].address && (
-                    <p className="text-slate-600 dark:text-slate-400">{branchesQuery.data[0].address}</p>
+                    <p className="flex gap-2 text-slate-600 dark:text-slate-400">
+                      <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" aria-hidden />
+                      {branchesQuery.data[0].address}
+                    </p>
                   )}
                   <a
                     href={`tel:${branchesQuery.data[0].phone.replace(/[^0-9+]/g, '')}`}
-                    className="inline-flex min-h-[44px] items-center font-mono text-[13px] font-semibold text-slate-900 hover:text-accent-600 dark:text-slate-100 dark:hover:text-accent-500"
+                    className="flex items-center gap-2 text-slate-600 transition-colors hover:text-accent-600 dark:text-slate-400 dark:hover:text-accent-500"
                   >
+                    <Phone className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />
                     <span className="sr-only">Telepon </span>
-                    {branchesQuery.data[0].phone}
+                    <span className="font-mono text-[13px]">{branchesQuery.data[0].phone}</span>
                   </a>
                 </div>
               )}
@@ -363,18 +412,22 @@ export function CustomerShell({ children }: { children: React.ReactNode }) {
                   ))}
                 </ul>
               )}
-              <p className="mt-4 flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
-                <Clock className="h-4 w-4 shrink-0" aria-hidden />
+              <p className="mt-2.5 flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                <Clock className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />
                 Buka setiap hari {FOOTER_JAM}
               </p>
             </div>
           </div>
 
-          <div className="mt-10 flex flex-col gap-2 border-t border-slate-200 pt-6 text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400 sm:flex-row sm:justify-between">
-            <p>© {new Date().getFullYear()} ServiceGo. Dibuat untuk Uji Kompetensi Keahlian.</p>
-            {session && user?.email && <p className="truncate">Masuk sebagai {user.email}</p>}
-          </div>
+          {/* Hanya dirender saat ada isinya, supaya tidak menyisakan garis kosong. */}
+          {session && user?.email && (
+            <p className="mt-10 truncate border-t border-slate-200 pt-6 text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
+              Masuk sebagai {user.email}
+            </p>
+          )}
         </div>
+
+        <GiantWordmark />
       </footer>
 
       {/* Navigasi bawah untuk mobile */}
