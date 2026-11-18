@@ -1,9 +1,9 @@
-'use client';
+﻿'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { CalendarPlus, Car, Clock, MapPin, Phone, Tag } from 'lucide-react';
+import { CalendarPlus, Car, ChevronDown, Clock, Cog, Disc3, Droplets, LayoutGrid, MapPin, Phone, Search, Snowflake, Sparkles, Tag, Wrench, Zap } from 'lucide-react';
 import { clsx } from 'clsx';
 import { fetcher } from '@/lib/fetcher';
 import { formatDate, formatDuration, formatRp, shortBranchName } from '@/lib/format';
@@ -52,7 +52,7 @@ const ctaGhost =
 const card = 'rounded-[20px] border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900';
 const h2 = 'text-[30px] sm:text-[40px] font-extrabold leading-[1.1] tracking-[-0.015em] text-slate-900 dark:text-white';
 const lead = 'text-[17px] leading-relaxed text-slate-600 dark:text-slate-400';
-const eyebrow = 'text-[15px] font-bold text-primary-700 dark:text-primary-100';
+const eyebrow = 'text-[15px] font-bold text-slate-500 dark:text-slate-400';
 
 /** "08.00 sampai 16.00 WIB", dari jam slot yang dipakai API booking. */
 const SLOT_RANGE = `${OPERATING_SLOTS[0].replace(':', '.')} sampai ${OPERATING_SLOTS[OPERATING_SLOTS.length - 1].replace(':', '.')} WIB`;
@@ -62,15 +62,18 @@ export function GuestLanding() {
   const mainBranch = branchesQuery.data?.[0] ?? null;
 
   return (
-    <div className="space-y-20 sm:space-y-24">
-      <Hero branch={mainBranch} />
-      <Facts branches={branchesQuery.data} />
-      <Features />
-      <PriceSection />
-      <HowItWorks />
-      <LocationSection query={branchesQuery} />
-      <PromoSection />
-      <FinalCta />
+    <div className="space-y-20 sm:space-y-24 overflow-x-clip">
+      {/* Dibungkus satu div agar space-y parent tidak menyisipkan celah putih antara hero & strip */}
+      <div>
+        <Hero branch={mainBranch} />
+        <CategoryStrip />
+      </div>
+      <div className="mx-auto max-w-[1440px] px-4 sm:px-6 lg:px-8 space-y-20 sm:space-y-24">
+        <PriceSection />
+        <PromoSection />
+        <LocationSection query={branchesQuery} />
+        <HowItWorks />
+      </div>
     </div>
   );
 }
@@ -78,280 +81,158 @@ export function GuestLanding() {
 // ---------------------------------------------------------------------------
 
 function Hero({ branch }: { branch: Branch | null }) {
-  return (
-    <section aria-labelledby="hero-title" className="grid items-center gap-10 pt-4 lg:grid-cols-[1.05fr_1fr] lg:gap-14 lg:pt-10">
-      <div className="space-y-6">
-        <h1
-          id="hero-title"
-          className="text-[38px] sm:text-[52px] lg:text-[56px] font-extrabold leading-[1.05] tracking-[-0.02em] text-slate-900 dark:text-white"
-        >
-          Servis kendaraan tanpa antre telepon, tanpa tebak-tebak biaya.
-        </h1>
-        <p className="max-w-xl text-[18px] leading-relaxed text-slate-600 dark:text-slate-400">
-          Pilih layanan dan jam datang langsung dari HP. Estimasi biaya muncul sebelum kamu konfirmasi, dan
-          status pengerjaan bisa dipantau sampai kendaraan siap diambil.
-        </p>
-        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-          <Link href="/booking/new" className={ctaAccent}>
-            <CalendarPlus className="h-5 w-5" aria-hidden />
-            Booking servis sekarang
-          </Link>
-          <a href="#harga" className={ctaGhost}>
-            Lihat harga layanan
-          </a>
-        </div>
-        {branch && (
-          <p className="flex flex-wrap items-center gap-x-2 text-[15px] text-slate-700 dark:text-slate-300">
-            <MapPin className="h-5 w-5 shrink-0 text-primary-600 dark:text-primary-500" aria-hidden />
-            <span>
-              <span className="sr-only">Lokasi bengkel: </span>
-              {branch.name}, {shortAddress(branch.address)}
-            </span>
-            <a
-              href="#lokasi"
-              className="-my-3 inline-flex min-h-[44px] items-center font-semibold text-primary-700 hover:underline dark:text-primary-100"
-            >
-              Lihat peta
-            </a>
-          </p>
-        )}
-        <p className="text-sm text-slate-600 dark:text-slate-400">
-          Untuk mobil dan motor. Sudah punya akun?{' '}
-          <Link href="/login" className="font-semibold text-primary-700 hover:underline dark:text-primary-100">
-            Masuk
-          </Link>
-        </p>
-      </div>
+  const [revealed, setRevealed] = useState(false);
 
-      <div className="relative pb-10">
-        <div className="relative h-[300px] overflow-hidden rounded-3xl bg-slate-100 sm:h-[440px] dark:bg-slate-800">
-          <WorkshopHero cover label="Ilustrasi bengkel ServiceGo: mobil di atas lift sedang diperiksa mekanik" />
-          <span className="absolute right-4 top-4 rounded-chip bg-slate-950/75 px-2.5 py-1.5 text-xs font-semibold text-white">
-            Contoh tampilan status
-          </span>
-        </div>
-        <StatusCardExample className="absolute bottom-0 left-4 right-4 sm:left-auto sm:right-auto sm:-left-6 sm:w-[330px]" />
-      </div>
-    </section>
-  );
-}
+  useEffect(() => {
+    // Fallback: pastikan animasi muncul jika onTimeUpdate tidak tertangkap
+    const timer = setTimeout(() => setRevealed(true), 2800);
+    return () => clearTimeout(timer);
+  }, []);
 
-/** Ilustrasi kartu status booking (bukan data asli; diberi label di atas gambar). */
-function StatusCardExample({ className }: { className?: string }) {
   return (
-    <div
-      aria-label="Contoh kartu status booking"
-      className={clsx(
-        'space-y-3.5 rounded-[18px] border border-slate-200 bg-white p-5 shadow-[0_24px_48px_-16px_rgba(15,23,42,0.28)] dark:border-slate-700 dark:bg-slate-900',
-        className
-      )}
+    <section
+      aria-label="Hero ServiceGo Video"
+      className="relative w-full h-screen min-h-[640px] max-h-[1080px] overflow-hidden bg-black flex flex-col justify-between"
     >
-      <div className="flex items-center justify-between gap-2">
-        <span className="rounded-full border border-primary-100 bg-primary-50 px-2.5 py-1 text-[13px] font-semibold text-primary-700 dark:border-primary-900 dark:bg-primary-900/40 dark:text-primary-100">
-          Sedang dikerjakan
-        </span>
-        <span className="font-mono text-xs text-slate-600 dark:text-slate-400">SG-3F9A21C7</span>
-      </div>
-      <div className="flex items-center gap-2.5">
-        <Plate number="B 1234 XYZ" size="md" />
-        <span className="text-[15px] font-semibold text-slate-900 dark:text-white">Toyota Avanza</span>
-      </div>
-      <div className="grid grid-cols-3 gap-1.5" aria-hidden>
-        <span className="h-1.5 rounded bg-primary-600" />
-        <span className="h-1.5 rounded bg-primary-600" />
-        <span className="h-1.5 rounded bg-slate-200 dark:bg-slate-700" />
-      </div>
-      <div className="flex justify-between text-xs text-slate-600 dark:text-slate-400">
-        <span>Diterima</span>
-        <span className="font-semibold text-slate-900 dark:text-white">Dikerjakan</span>
-        <span>Siap diambil</span>
-      </div>
-      <div className="flex items-baseline justify-between border-t border-slate-200 pt-3 text-sm dark:border-slate-800">
-        <span className="text-slate-600 dark:text-slate-400">Estimasi biaya</span>
-        <span className="text-lg font-bold text-slate-900 dark:text-white">Rp 325.000</span>
-      </div>
-    </div>
-  );
-}
+      <video
+        ref={(el) => {
+          if (el) {
+            el.setAttribute('muted', '');
+            el.defaultMuted = true;
+            el.muted = true;
+            el.play().catch(() => {});
+          }
+        }}
+        onTimeUpdate={(e) => {
+          const v = e.currentTarget;
+          // Munculkan animasi saat mobil sudah mendekat
+          if (v.currentTime >= 2.5 || v.ended) {
+            setRevealed(true);
+          }
+        }}
+        onEnded={() => setRevealed(true)}
+        src="/car-moving.mp4"
+        autoPlay
+        muted
+        playsInline
+        className="absolute inset-0 h-full w-full object-cover"
+      />
 
-// ---------------------------------------------------------------------------
+      {/* Subtle cinematic gradient vignette: gelap atas untuk navbar, gelap bawah untuk CTA */}
+      <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-transparent to-black pointer-events-none" />
 
-function Facts({ branches }: { branches?: Branch[] }) {
-  // Kota diambil dari alamat bengkel asli (kata terakhir setelah koma).
-  const cities = useMemo(() => {
-    if (!branches?.length) return null;
-    const set = new Set(
-      branches.map((b) => b.address.split(',').pop()!.trim().replace(/^(Kota|Kabupaten)\s+/i, '')).filter(Boolean)
-    );
-    return Array.from(set).join(', ');
-  }, [branches]);
+      {/* Tengah kiri: headline + CTA booking, mengisi area kosong di samping mobil */}
+      <div className="relative z-10 mx-auto flex w-full max-w-[1440px] flex-1 items-center px-4 sm:px-6 lg:px-8">
+        {/* Tiap elemen masuk sendiri-sendiri dari luar layar kiri, berurutan (delay beda) */}
+        <div
+          className={clsx(
+            'flex flex-col items-start text-left gap-4 max-w-md [&>*]:transition-all [&>*]:duration-1000 [&>*]:ease-out motion-reduce:[&>*]:transition-none',
+            revealed
+              ? '[&>*]:translate-x-0 [&>*]:opacity-100'
+              : '[&>*]:-translate-x-[100vw] [&>*]:opacity-0 pointer-events-none'
+          )}
+        >
+          <h2 className="delay-300 text-[34px] sm:text-[48px] font-bold text-white leading-[1.1] tracking-tight drop-shadow-md">
+            Servis cepat,
+            <br />
+            hasil rapi
+          </h2>
+          <p className="delay-[650ms] max-w-[300px] text-base sm:text-lg text-slate-200 drop-shadow">
+            Booking online tanpa antre, dikerjakan mekanik berpengalaman
+          </p>
+          {/* wrapper supaya animasi masuk tidak bentrok dengan hover scale tombol */}
+          <div className="delay-1000 mt-1">
+            <Link
+              href="/booking/new"
+              className="inline-flex min-h-[46px] items-center justify-center gap-2 rounded-full bg-white px-7 text-[15px] font-semibold text-slate-950 transition-all duration-300 hover:scale-105 hover:bg-slate-100 active:scale-95"
+            >
+              Booking Sekarang
+            </Link>
+          </div>
+        </div>
+      </div>
 
-  const count = branches?.length ?? 0;
-  const items = [
-    {
-      icon: MapPin,
-      // Satu bengkel: tampilkan nama & kotanya. Lebih dari satu: jumlah lokasi dari data asli.
-      title: count === 1 ? branches![0].name : count > 1 ? `${count} lokasi bengkel` : 'Bengkel ServiceGo',
-      text: cities ? (count === 1 ? `Kota ${cities}` : cities) : 'Lihat lokasi bengkel di bawah'
-    },
-    { icon: Clock, title: 'Slot per jam', text: `${SLOT_RANGE}, pilih yang masih kosong` },
-    { icon: Car, title: 'Mobil & motor', text: 'Simpan beberapa kendaraan di satu akun' }
-  ];
+      {/* BOTTOM SECTION: metrik bengkel di kanan */}
+      <div className="relative z-10 mx-auto w-full max-w-[1440px] px-4 pb-8 sm:px-6 sm:pb-12 lg:px-8 flex justify-center">
 
-  return (
-    <section aria-label="Sekilas ServiceGo" className="-mt-8 sm:-mt-12">
-      <ul className={clsx(card, 'grid divide-y divide-slate-200 md:grid-cols-3 md:divide-x md:divide-y-0 dark:divide-slate-800')}>
-        {items.map(({ icon: Icon, title, text }) => (
-          <li key={title} className="flex items-start gap-3.5 px-6 py-5 sm:px-7 sm:py-6">
-            <Icon className="mt-0.5 h-6 w-6 shrink-0 text-primary-600 dark:text-primary-500" aria-hidden />
-            <div>
-              <p className="text-[17px] font-bold text-slate-900 dark:text-white">{title}</p>
-              <p className="mt-0.5 text-[15px] text-slate-600 dark:text-slate-400">{text}</p>
-            </div>
-          </li>
-        ))}
-      </ul>
+        {/* Kanan: Quick Specs / Metrik Bengkel (seperti metrik 0-100km/h di referensi Lumen S) */}
+        <div
+          className={clsx(
+            'hidden sm:flex items-center gap-6 md:gap-8 text-center transition-all duration-1000 delay-500 ease-out select-none',
+            revealed ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0 pointer-events-none'
+          )}
+        >
+          <div className="space-y-0.5">
+            <p className="text-[11px] text-slate-400 font-medium uppercase tracking-wider">Jam Operasional</p>
+            <p className="text-base sm:text-lg font-bold text-white">08.00 - 16.00 WIB</p>
+          </div>
+          <div className="h-8 w-px bg-white/20" />
+          <div className="space-y-0.5">
+            <p className="text-[11px] text-slate-400 font-medium uppercase tracking-wider">Layanan Tersedia</p>
+            <p className="text-base sm:text-lg font-bold text-white">22+ Paket</p>
+          </div>
+          <div className="h-8 w-px bg-white/20" />
+          <div className="space-y-0.5">
+            <p className="text-[11px] text-slate-400 font-medium uppercase tracking-wider">Rating Pelanggan</p>
+            <p className="text-base sm:text-lg font-bold text-white">★ 4.9 / 5.0</p>
+          </div>
+        </div>
+      </div>
     </section>
   );
 }
 
-// ---------------------------------------------------------------------------
-
-function Feature({
-  label,
-  title,
-  text,
-  reverse,
-  children
-}: {
-  label: string;
-  title: string;
-  text: string;
-  reverse?: boolean;
-  children: React.ReactNode;
-}) {
+/** Strip kategori layanan gaya "Performance Tuning Services": latar gelap, ikon aksen, 6 kolom. */
+function CategoryStrip() {
+  const items = [
+    { icon: Cog, title: 'Servis Mesin', desc: 'Tune-up menyeluruh agar performa mesin tetap maksimal.' },
+    { icon: Droplets, title: 'Oli & Cairan', desc: 'Ganti oli, radiator, dan cairan vital tepat takaran.' },
+    { icon: Disc3, title: 'Sistem Rem', desc: 'Kampas, rotor, dan kaliper demi pengereman pakem.' },
+    { icon: Zap, title: 'Kelistrikan', desc: 'Aki, starter, hingga diagnosa OBD2 akurat.' },
+    { icon: Snowflake, title: 'Servis AC', desc: 'Kabin sejuk kembali, freon dan filter terjaga.' },
+    { icon: Car, title: 'Kaki-kaki', desc: 'Spooring, balancing, dan shockbreaker nyaman.' }
+  ];
   return (
-    <div className="grid items-center gap-8 lg:grid-cols-2 lg:gap-16">
-      <div className={clsx('space-y-4', reverse && 'lg:order-2')}>
-        <p className={eyebrow}>{label}</p>
-        <h2 className={h2}>{title}</h2>
-        <p className={clsx(lead, 'max-w-[480px]')}>{text}</p>
-      </div>
-      <div className="relative">
-        {children}
-        <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">Contoh tampilan di aplikasi</p>
-      </div>
-    </div>
-  );
-}
-
-const SLOT_EXAMPLE = [
-  { t: '08:00' },
-  { t: '09:00', on: true },
-  { t: '10:00', full: true },
-  { t: '11:00' },
-  { t: '13:00' },
-  { t: '14:00' },
-  { t: '15:00', full: true },
-  { t: '16:00' }
-];
-
-function Features() {
-  return (
-    <section aria-label="Kenapa booking lewat ServiceGo" className="space-y-20 sm:space-y-24">
-      <Feature
-        label="Jadwal"
-        title="Pilih jam datang yang masih kosong."
-        text="Slot dihitung dari kapasitas bengkel per jam. Jam yang sudah penuh tidak bisa dipilih, jadi kamu tidak datang lalu disuruh menunggu."
-      >
-        <div className={clsx(card, 'space-y-4 p-6 sm:p-7')} aria-hidden>
-          <div className="flex items-baseline justify-between gap-3">
-            <span className="font-bold text-slate-900 dark:text-white">Jam datang</span>
-            <span className="text-sm text-slate-600 dark:text-slate-400">Pilih tanggal dulu</span>
-          </div>
-          <div className="grid grid-cols-4 gap-2.5">
-            {SLOT_EXAMPLE.map((s) => (
-              <span
-                key={s.t}
-                className={clsx(
-                  'flex h-[52px] flex-col items-center justify-center rounded-ctl text-[15px] font-semibold',
-                  s.on && 'bg-primary-600 font-bold text-white',
-                  s.full && 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400',
-                  !s.on && !s.full && 'border border-slate-300 text-slate-900 dark:border-slate-700 dark:text-white'
-                )}
-              >
-                {s.t}
-                {s.full && <span className="text-[11px] font-medium">Penuh</span>}
-              </span>
-            ))}
-          </div>
-        </div>
-      </Feature>
-
-      <Feature
-        reverse
-        label="Biaya"
-        title="Tahu estimasinya sebelum datang."
-        text="Harga tiap layanan tampil di depan. Kode promo langsung memotong estimasi di ringkasan booking, bukan dijanjikan nanti di kasir."
-      >
-        <div className={clsx(card, 'space-y-3 p-6 sm:p-7')} aria-hidden>
-          <p className="mb-1 text-lg font-bold text-slate-900 dark:text-white">Ringkasan</p>
-          {[
-            ['Ganti oli mesin + filter', 175000],
-            ['Servis rem & flushing minyak rem', 150000]
-          ].map(([n, p]) => (
-            <div key={n as string} className="flex justify-between gap-3 text-[15px] text-slate-900 dark:text-slate-100">
-              <span>{n}</span>
-              <span className="text-slate-700 dark:text-slate-300">{formatRp(p as number)}</span>
-            </div>
-          ))}
-          <div className="flex items-center gap-2 rounded-ctl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-100">
-            <span className="font-mono font-semibold">HEMAT20</span>
-            <span>diskon 20% dipakai</span>
-          </div>
-          <div className="space-y-1.5 border-t border-slate-200 pt-3.5 dark:border-slate-800">
-            <div className="flex justify-between text-sm text-slate-600 dark:text-slate-400">
-              <span>Subtotal</span>
-              <span>{formatRp(325000)}</span>
-            </div>
-            <div className="flex justify-between text-sm text-emerald-700 dark:text-emerald-300">
-              <span>Diskon HEMAT20</span>
-              <span>-{formatRp(65000)}</span>
-            </div>
-            <div className="flex items-baseline justify-between">
-              <span className="font-semibold text-slate-900 dark:text-white">Estimasi biaya</span>
-              <span className="text-[28px] font-extrabold text-slate-900 dark:text-white">{formatRp(260000)}</span>
-            </div>
-          </div>
-        </div>
-      </Feature>
-
-      <Feature
-        label="Status"
-        title="Pantau dari HP, sampai siap diambil."
-        text="Status berubah saat mekanik mulai dan selesai bekerja. Foto kondisi kendaraan saat datang dan saat selesai ikut tersimpan di riwayat."
-      >
-        <ol className={clsx(card, 'space-y-5 p-6 sm:p-7')} aria-hidden>
-          {[
-            ['bg-amber-500', 'Booking diterima', 'Menunggu konfirmasi bengkel'],
-            ['bg-primary-600', 'Mulai dikerjakan', 'Mekanik dan jam mulai tercatat'],
-            ['bg-green-600', 'Selesai, siap diambil', 'Notifikasi masuk ke akun kamu']
-          ].map(([dot, t, d]) => (
-            <li key={t} className="flex gap-3.5">
-              <span className={clsx('mt-1.5 h-3 w-3 shrink-0 rounded-full', dot)} />
-              <div>
-                <p className="font-bold text-slate-900 dark:text-white">{t}</p>
-                <p className="text-sm text-slate-600 dark:text-slate-400">{d}</p>
-              </div>
+    <section aria-label="Kategori layanan" className="bg-black">
+      <div className="mx-auto max-w-[1440px] px-4 sm:px-6 lg:px-8 pt-10 sm:pt-14 pb-4">
+        <ul className="grid grid-cols-2 gap-x-6 gap-y-10 sm:grid-cols-3 lg:grid-cols-6">
+          {items.map(({ icon: Icon, title, desc }) => (
+            <li key={title} className="flex flex-col items-center text-center gap-3">
+              <Icon className="h-10 w-10 text-accent-500" strokeWidth={1.5} aria-hidden />
+              <p className="text-[13px] font-bold uppercase tracking-wider text-white">{title}</p>
+              <p className="text-[12px] leading-relaxed text-slate-400">{desc}</p>
             </li>
           ))}
-        </ol>
-      </Feature>
+        </ul>
+      </div>
+      {/* Transisi gelap -> abu-abu -> putih dengan tepi gelombang, bukan garis lurus */}
+      <div aria-hidden className="relative h-14 sm:h-20 bg-black">
+        <svg
+          className="absolute inset-x-0 bottom-0 h-full w-full"
+          viewBox="0 0 1440 64"
+          preserveAspectRatio="none"
+          fill="var(--bg-base)"
+        >
+          <path d="M0 64 L0 40 C 240 0, 480 64, 720 40 C 960 16, 1200 48, 1440 16 L1440 64 Z" />
+        </svg>
+      </div>
     </section>
   );
 }
 
+
 // ---------------------------------------------------------------------------
+
+/** Ikon per kategori untuk tile gambar di kartu layanan (dipakai juga sebagai "gambar" kategori). */
+const CATEGORY_ICONS: Record<ServiceCategoryId, typeof Cog> = {
+  mesin: Cog,
+  oli: Droplets,
+  rem: Disc3,
+  kelistrikan: Zap,
+  ac: Snowflake,
+  'kaca-film': Sparkles,
+  'kaki-kaki': Car
+};
 
 function PriceSection() {
   const { data, isLoading, isError, error, refetch } = useQuery<Service[]>({
@@ -369,18 +250,24 @@ function PriceSection() {
     return map;
   }, [services]);
   const cats = SERVICE_CATEGORIES.filter((c) => grouped.has(c.id));
-  const [picked, setPicked] = useState<ServiceCategoryId | null>(null);
-  const active = picked && grouped.has(picked) ? picked : cats[0]?.id ?? null;
-  const list = active ? grouped.get(active) ?? [] : [];
+  const [picked, setPicked] = useState<ServiceCategoryId | 'all'>('all');
+  const [catsOpen, setCatsOpen] = useState(true);
+  const [search, setSearch] = useState('');
+  const [detail, setDetail] = useState<Service | null>(null);
+  const active = picked !== 'all' && grouped.has(picked) ? picked : 'all';
+  const q = search.trim().toLowerCase();
+  // Saat mencari: cari di semua kategori, bukan cuma yang dipilih.
+  const list = q
+    ? services.filter((s) => `${s.name} ${s.description ?? ''}`.toLowerCase().includes(q))
+    : active === 'all'
+      ? services
+      : grouped.get(active) ?? [];
 
   return (
     <section id="harga" aria-labelledby="harga-title" className="scroll-mt-24 space-y-7">
-      <div className="max-w-2xl space-y-3">
-        <h2 id="harga-title" className={h2}>
-          Layanan dan harga
-        </h2>
-        <p className={lead}>Harga dan durasi yang sama dipakai untuk menghitung estimasi di form booking.</p>
-      </div>
+      <h2 id="harga-title" className={clsx(h2, 'text-center')}>
+        Layanan dan harga
+      </h2>
 
       {isLoading && (
         <div className="grid gap-3 md:grid-cols-2" aria-busy>
@@ -397,57 +284,213 @@ function PriceSection() {
       )}
 
       {cats.length > 0 && (
-        <>
-          {cats.length > 1 && (
-            <div role="tablist" aria-label="Kategori layanan" className="flex flex-wrap gap-2">
-              {cats.map((c) => {
-                const on = c.id === active;
-                return (
+        <div className="space-y-5">
+          <div className="grid gap-6 lg:grid-cols-[240px_1fr] lg:items-start">
+          {/* Kiri: panel Kategori, sejajar dengan kartu */}
+          <nav aria-label="Kategori layanan" className={clsx(card, 'p-3 space-y-1.5')}>
+            <p className="pb-2 pt-1 text-center text-[13px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              Kategori
+            </p>
+            <div className="mx-2 mb-1 border-b border-slate-200 dark:border-slate-800" aria-hidden />
+
+            {/* Semua: gabungan seluruh layanan */}
+            <button
+              type="button"
+              aria-pressed={!q && active === 'all'}
+              onClick={() => {
+                setPicked('all');
+                setSearch('');
+              }}
+              className={clsx(
+                'flex w-full min-h-[44px] items-center gap-3 rounded-ctl px-4 text-[15px] font-semibold transition-colors',
+                !q && active === 'all'
+                  ? 'bg-slate-900 text-white dark:bg-slate-700'
+                  : 'text-slate-900 hover:bg-slate-100 dark:text-white dark:hover:bg-slate-800'
+              )}
+            >
+              <LayoutGrid
+                className={clsx('h-[18px] w-[18px] shrink-0', !q && active === 'all' ? 'text-white' : 'text-slate-500 dark:text-slate-400')}
+                aria-hidden
+              />
+              <span className="flex-1 text-left">Semua</span>
+              <span className={clsx('text-sm', !q && active === 'all' ? 'text-slate-300' : 'text-slate-500 dark:text-slate-400')}>
+                {services.length}
+              </span>
+            </button>
+
+            {/* Dropdown: buka/tutup daftar kategori */}
+            <button
+              type="button"
+              aria-expanded={catsOpen}
+              onClick={() => setCatsOpen((v) => !v)}
+              className="flex w-full min-h-[44px] items-center gap-3 rounded-ctl px-4 text-[15px] font-semibold text-slate-900 transition-colors hover:bg-slate-100 dark:text-white dark:hover:bg-slate-800"
+            >
+              <span className="flex-1 text-left">Per kategori</span>
+              <ChevronDown
+                className={clsx('h-4 w-4 shrink-0 transition-transform', catsOpen && 'rotate-180')}
+                aria-hidden
+              />
+            </button>
+
+            {catsOpen && cats.map((c) => {
+              const on = !q && c.id === active;
+              const Icon = CATEGORY_ICONS[c.id];
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => {
+                    setPicked(c.id);
+                    setSearch('');
+                  }}
+                  className={clsx(
+                    'flex w-full min-h-[44px] items-center gap-3 rounded-ctl px-4 text-[15px] font-semibold transition-colors',
+                    on
+                      ? 'bg-slate-900 text-white dark:bg-slate-700'
+                      : 'text-slate-900 hover:bg-slate-100 dark:text-white dark:hover:bg-slate-800'
+                  )}
+                >
+                  <Icon className={clsx('h-4.5 w-4.5 h-[18px] w-[18px] shrink-0', on ? 'text-white' : 'text-slate-500 dark:text-slate-400')} aria-hidden />
+                  <span className="flex-1 text-left">{c.label}</span>
+                  <span className={clsx('text-sm', on ? 'text-slate-300' : 'text-slate-500 dark:text-slate-400')}>
+                    {grouped.get(c.id)?.length}
+                  </span>
+                </button>
+              );
+            })}
+          </nav>
+
+          {/* Kanan: search bar lalu kartu layanan */}
+          <div className="space-y-4">
+            <label className="relative block max-w-md">
+              <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" aria-hidden />
+              <input
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Cari layanan, misal: ganti oli"
+                aria-label="Cari layanan"
+                className="h-12 w-full rounded-ctl border border-slate-300 bg-white pl-11 pr-4 text-[15px] text-slate-900 placeholder:text-slate-400 focus:border-slate-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+              />
+            </label>
+            {q && list.length === 0 && (
+              <EmptyState icon={Search} title="Tidak ada layanan yang cocok" description={`Tidak ada hasil untuk "${search.trim()}".`} />
+            )}
+            <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {list.map((s) => {
+              const Icon = CATEGORY_ICONS[getServiceCategory(s.name, s.description)];
+              return (
+                <li key={s.id}>
                   <button
-                    key={c.id}
                     type="button"
-                    role="tab"
-                    aria-selected={on}
-                    onClick={() => setPicked(c.id)}
-                    className={clsx(
-                      'min-h-[44px] rounded-chip border px-4 text-[15px] font-semibold transition-colors',
-                      on
-                        ? 'border-primary-600 bg-primary-600 text-white'
-                        : 'border-slate-300 bg-white text-slate-900 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:hover:bg-slate-800'
-                    )}
+                    onClick={() => setDetail(s)}
+                    className="group flex h-full w-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white text-left transition-colors hover:border-slate-400 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-500"
                   >
-                    {c.label}
-                    <span className={clsx('ml-1.5 text-sm', on ? 'text-primary-100' : 'text-slate-500 dark:text-slate-400')}>
-                      {grouped.get(c.id)?.length}
+                    {/* "Foto" produk: blok gelap + ikon kategori (belum ada aset foto per layanan) */}
+                    <span
+                      aria-hidden
+                      className="flex h-52 w-full items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-700 text-accent-500"
+                    >
+                      <Icon className="h-16 w-16 transition-transform duration-300 group-hover:scale-110" strokeWidth={1} />
+                    </span>
+                    <span className="flex w-full flex-1 flex-col p-5">
+                      <span className="block leading-snug text-slate-900 dark:text-white">{s.name}</span>
+                      <span className="mt-4 flex items-baseline justify-between gap-3">
+                        <span className="text-[15px] text-slate-600 dark:text-slate-400">{formatRp(s.price)}</span>
+                        <span className="text-[13px] font-semibold text-accent-600 group-hover:underline dark:text-accent-500">
+                          Lihat detail
+                        </span>
+                      </span>
                     </span>
                   </button>
-                );
-              })}
-            </div>
-          )}
-          <ul role="tabpanel" className="grid gap-3 md:grid-cols-2">
-            {list.map((s) => (
-              <li key={s.id}>
-                <Link
-                  href={`/services/${s.id}`}
-                  className="flex h-full items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white px-5 py-5 transition-colors hover:border-primary-600 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-primary-500"
-                >
-                  <div className="min-w-0">
-                    <p className="font-bold text-slate-900 dark:text-white">{s.name}</p>
-                    {s.description && (
-                      <p className="mt-1 line-clamp-2 text-sm text-slate-600 dark:text-slate-400">{s.description}</p>
-                    )}
-                    <p className="mt-2 inline-flex items-center gap-1.5 text-[13px] text-slate-600 dark:text-slate-400">
-                      <Clock className="h-3.5 w-3.5" aria-hidden />
-                      {formatDuration(s.duration_minutes)}
-                    </p>
+                </li>
+              );
+            })}
+            </ul>
+          </div>
+          </div>
+        </div>
+      )}
+
+      {/* Detail layanan sebagai kartu dialog, bukan halaman */}
+      {detail && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Detail ${detail.name}`}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          onClick={() => setDetail(null)}
+        >
+          <div
+            className="flex min-h-[420px] w-full max-w-4xl overflow-hidden rounded-[24px] bg-white shadow-2xl dark:bg-slate-900"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {(() => {
+              const Icon = CATEGORY_ICONS[getServiceCategory(detail.name, detail.description)];
+              const catLabel = SERVICE_CATEGORIES.find(
+                (c) => c.id === getServiceCategory(detail.name, detail.description)
+              )?.label;
+              return (
+                <>
+                  {/* Kiri: gambar full tinggi kartu (placeholder ikon, siap diganti foto) */}
+                  <div className="flex w-2/5 shrink-0 items-center justify-center self-stretch bg-gradient-to-br from-slate-900 via-slate-800 to-slate-700 text-accent-500">
+                    <Icon className="h-16 w-16" strokeWidth={1} aria-hidden />
                   </div>
-                  <p className="whitespace-nowrap text-lg font-extrabold text-slate-900 dark:text-white">{formatRp(s.price)}</p>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </>
+                  {/* Kanan: judul bold, sisanya tidak */}
+                  <div className="relative flex flex-1 flex-col gap-4 p-6 sm:p-7">
+                    <button
+                      type="button"
+                      onClick={() => setDetail(null)}
+                      aria-label="Tutup detail"
+                      className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                    >
+                      ✕
+                    </button>
+                    <div className="pr-10">
+                      {catLabel && (
+                        <p className="text-[13px] uppercase tracking-wider text-accent-600 dark:text-accent-500">
+                          {catLabel}
+                        </p>
+                      )}
+                      <h3 className="mt-1 text-xl font-bold text-slate-900 dark:text-white">{detail.name}</h3>
+                    </div>
+                    <p className="text-[15px] leading-relaxed text-slate-600 dark:text-slate-400">
+                      {detail.description || 'Bengkel belum menambahkan deskripsi untuk layanan ini.'}
+                    </p>
+                    <dl className="mt-auto grid grid-cols-2 gap-3">
+                      <div className="rounded-2xl bg-slate-50 px-5 py-4 dark:bg-slate-800/60">
+                        <dt className="flex items-center gap-1.5 text-[13px] font-medium text-slate-500 dark:text-slate-400">
+                          <Tag className="h-3.5 w-3.5" aria-hidden />
+                          Harga
+                        </dt>
+                        <dd className="mt-1 text-xl font-semibold tracking-tight text-slate-900 dark:text-white">
+                          {formatRp(detail.price)}
+                        </dd>
+                      </div>
+                      <div className="rounded-2xl bg-slate-50 px-5 py-4 dark:bg-slate-800/60">
+                        <dt className="flex items-center gap-1.5 text-[13px] font-medium text-slate-500 dark:text-slate-400">
+                          <Clock className="h-3.5 w-3.5" aria-hidden />
+                          Perkiraan durasi
+                        </dt>
+                        <dd className="mt-1 text-xl font-semibold tracking-tight text-slate-900 dark:text-white">
+                          {formatDuration(detail.duration_minutes)}
+                        </dd>
+                      </div>
+                    </dl>
+                    <Link
+                      href={`/booking/new?service_id=${detail.id}`}
+                      className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-ctl bg-accent-500 px-6 font-bold text-slate-950 transition-colors hover:bg-accent-600"
+                    >
+                      <CalendarPlus className="h-5 w-5" aria-hidden />
+                      Booking servis ini
+                    </Link>
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        </div>
       )}
     </section>
   );
@@ -463,44 +506,62 @@ const STEPS = [
 
 function HowItWorks() {
   return (
+    // Full-bleed: section keluar dari container pakai w-screen + translate
     <section
       id="cara"
       aria-labelledby="cara-title"
-      className="scroll-mt-24 rounded-[28px] bg-slate-900 px-6 py-14 text-white sm:px-12 sm:py-16 dark:bg-slate-950 dark:ring-1 dark:ring-slate-800"
+      className="relative left-1/2 w-screen -translate-x-1/2 scroll-mt-24 overflow-hidden bg-slate-950 pb-28 pt-16 text-white sm:pb-36 sm:pt-24"
     >
-      <div className="max-w-2xl space-y-3">
-        <h2 id="cara-title" className="text-[30px] sm:text-[40px] font-extrabold leading-[1.1] tracking-[-0.015em]">
-          Booking dalam tiga langkah
-        </h2>
-        <p className="text-[17px] leading-relaxed text-slate-300">
-          Bisa dilihat tanpa akun. Untuk konfirmasi, masuk atau daftar di langkah terakhir.
-        </p>
-      </div>
-      <ol className="mt-10 grid gap-6 sm:grid-cols-3">
-        {STEPS.map(([t, d], i) => {
-          const last = i === STEPS.length - 1;
-          return (
-            <li key={t} className={clsx('space-y-2.5 border-t-2 pt-4', last ? 'border-accent-500' : 'border-primary-500')}>
-              <span className={clsx('font-mono text-sm font-semibold', last ? 'text-orange-300' : 'text-blue-300')}>
-                {String(i + 1).padStart(2, '0')}
+      <div className="mx-auto grid max-w-[1100px] gap-14 px-4 sm:px-6 lg:grid-cols-[1.15fr_1fr] lg:items-center lg:gap-16 lg:px-8">
+        {/* Kiri: judul + CTA */}
+        <div className="space-y-5">
+          <h2 id="cara-title" className="text-[32px] sm:text-[42px] font-extrabold leading-[1.08] tracking-[-0.015em]">
+            Booking dalam
+            <br />
+            tiga langkah
+          </h2>
+          <p className="max-w-[400px] text-[17px] leading-relaxed text-slate-400">
+            Bisa dilihat tanpa akun. Untuk konfirmasi, masuk atau daftar di langkah terakhir.
+          </p>
+
+          {/* Ajakan booking */}
+          <div className="border-t border-slate-800 pt-6">
+            <p className="text-[15px] text-slate-400">
+              Nggak sampai dua menit, slot langsung terkunci — <span className="font-semibold text-white">gratis batalin</span> kapan saja.
+            </p>
+            <Link href="/booking/new" className={clsx(ctaAccent, 'mt-5')}>
+              Booking sekarang
+            </Link>
+          </div>
+        </div>
+
+        {/* Kanan: timeline vertikal step-by-step */}
+        <ol className="relative space-y-12">
+          {/* Garis penghubung vertikal */}
+          <div aria-hidden className="absolute bottom-6 left-6 top-6 w-px bg-slate-800" />
+          {STEPS.map(([t, d], i) => (
+            <li key={t} className="relative flex gap-6">
+              <span className="relative z-10 flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-slate-700 bg-slate-950 font-mono text-[15px] font-semibold text-white">
+                {i + 1}
               </span>
-              <p className="text-[19px] font-bold">{t}</p>
-              <p className="text-[15px] leading-relaxed text-slate-300">{d}</p>
+              <div className="pt-2">
+                <p className="text-[19px] font-bold">{t}</p>
+                <p className="mt-1.5 max-w-[420px] text-[15px] leading-relaxed text-slate-400">{d}</p>
+              </div>
             </li>
-          );
-        })}
-      </ol>
-      <div className="mt-10 flex flex-col gap-3 sm:flex-row">
-        <Link href="/booking/new" className={ctaAccent}>
-          Mulai booking
-        </Link>
-        <Link
-          href="/register"
-          className="inline-flex min-h-[52px] items-center justify-center rounded-ctl border border-slate-600 px-6 text-[17px] font-semibold text-white hover:bg-slate-800 transition-colors"
-        >
-          Daftar akun gratis
-        </Link>
+          ))}
+        </ol>
       </div>
+
+      {/* Perbatasan ke footer: gelombang, bukan garis lurus */}
+      <svg
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 bottom-0 block h-14 w-full fill-white sm:h-20 dark:fill-slate-900"
+        viewBox="0 0 1440 80"
+        preserveAspectRatio="none"
+      >
+        <path d="M0 80 L0 46 C 240 6, 480 78, 720 44 C 960 10, 1200 62, 1440 22 L1440 80 Z" />
+      </svg>
     </section>
   );
 }
@@ -581,24 +642,24 @@ function LocationSection({
             <>
               <ul className="space-y-3.5 text-[15px] text-slate-700 dark:text-slate-300">
                 <li className="flex items-start gap-3">
-                  <MapPin className="mt-0.5 h-5 w-5 shrink-0 text-primary-600 dark:text-primary-500" aria-hidden />
+                  <MapPin className="mt-0.5 h-5 w-5 shrink-0 text-slate-500 dark:text-slate-400" aria-hidden />
                   <span>
                     <span className="sr-only">Alamat: </span>
                     {main.address}
                   </span>
                 </li>
                 <li className="flex items-start gap-3">
-                  <Clock className="mt-0.5 h-5 w-5 shrink-0 text-primary-600 dark:text-primary-500" aria-hidden />
+                  <Clock className="mt-0.5 h-5 w-5 shrink-0 text-slate-500 dark:text-slate-400" aria-hidden />
                   <span>
                     <span className="sr-only">Jam datang: </span>
                     Slot datang {SLOT_RANGE}
                   </span>
                 </li>
                 <li className="flex items-start gap-3">
-                  <Phone className="mt-0.5 h-5 w-5 shrink-0 text-primary-600 dark:text-primary-500" aria-hidden />
+                  <Phone className="mt-0.5 h-5 w-5 shrink-0 text-slate-500 dark:text-slate-400" aria-hidden />
                   <a
                     href={`tel:${tel(main.phone)}`}
-                    className="-my-3 inline-flex min-h-[44px] items-center font-mono font-semibold text-primary-700 hover:underline dark:text-primary-100"
+                    className="-my-3 inline-flex min-h-[44px] items-center font-mono font-semibold text-slate-900 hover:underline dark:text-white"
                   >
                     <span className="sr-only">Telepon </span>
                     {main.phone}
@@ -609,7 +670,7 @@ function LocationSection({
               <div className="mt-auto flex flex-col gap-3 pt-1 sm:flex-row sm:flex-wrap">
                 <Link
                   href={`/booking/new?branch_id=${main.id}`}
-                  className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-ctl bg-primary-600 px-6 text-[17px] font-bold text-white hover:bg-primary-700 transition-colors"
+                  className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-ctl bg-slate-900 px-6 text-[17px] font-bold text-white hover:bg-black dark:bg-slate-700 dark:hover:bg-slate-600 transition-colors"
                 >
                   <CalendarPlus className="h-5 w-5" aria-hidden />
                   Booking di sini
@@ -657,69 +718,123 @@ function PromoSection() {
   const promos = (data ?? []).filter((p) => p.is_active);
   if (!isLoading && !isError && promos.length === 0) return null; // tidak ada promo: bagian disembunyikan
 
-  return (
-    <section id="promo" aria-labelledby="promo-title" className="scroll-mt-24 space-y-7">
-      <div className="max-w-2xl space-y-3">
-        <h2 id="promo-title" className={h2}>
-          Promo yang bisa langsung dipakai
-        </h2>
-        <p className={lead}>Masukkan kode di ringkasan booking. Diskon dipotong dari estimasi biaya layanan yang kamu pilih.</p>
+  // Voucher mini yang dirender di dalam frame hp/tablet.
+  // Tiket dua bagian: stub oranye kiri berisi persen, sobekan berlubang + garis putus-putus di tengah.
+  const Voucher = ({ p, compact }: { p: Promo; compact?: boolean }) => (
+    <div className="relative flex overflow-hidden rounded-xl bg-white shadow-md dark:bg-slate-800">
+      {/* Stub kiri */}
+      <div
+        className={clsx(
+          'flex shrink-0 flex-col items-center justify-center bg-accent-500 text-slate-950',
+          compact ? 'w-12' : 'w-16'
+        )}
+      >
+        <span className={clsx('font-extrabold leading-none', compact ? 'text-base' : 'text-xl')}>
+          {p.discount_percent}%
+        </span>
+        <span className="mt-0.5 text-[9px] font-bold uppercase tracking-widest">OFF</span>
       </div>
-      {isLoading && (
-        <div className="grid gap-4 md:grid-cols-3" aria-busy>
-          {[0, 1, 2].map((i) => (
-            <SkeletonBlock key={i} className="h-48" />
-          ))}
-        </div>
-      )}
+      {/* Garis sobekan + lubang atas-bawah (warna mengikuti layar perangkat) */}
+      <div aria-hidden className="relative w-0 border-l-2 border-dashed border-slate-300 dark:border-slate-600">
+        <span className="absolute -left-[7px] -top-[7px] h-3.5 w-3.5 rounded-full bg-slate-50 dark:bg-slate-900" />
+        <span className="absolute -bottom-[7px] -left-[7px] h-3.5 w-3.5 rounded-full bg-slate-50 dark:bg-slate-900" />
+      </div>
+      {/* Isi */}
+      <div className={clsx('min-w-0 flex-1', compact ? 'p-2' : 'p-3')}>
+        <span className="inline-block rounded bg-slate-900 px-1.5 py-0.5 font-mono text-[10px] font-semibold tracking-wide text-white dark:bg-slate-950">
+          {p.code}
+        </span>
+        <p className={clsx('mt-1 font-bold leading-snug text-slate-900 dark:text-white', compact ? 'text-[11px]' : 'text-[13px]')}>
+          {p.title}
+        </p>
+        {!compact && (
+          <p className="mt-0.5 line-clamp-1 text-[11px] text-slate-500 dark:text-slate-400">{p.description}</p>
+        )}
+      </div>
+    </div>
+  );
+
+  return (
+    // Full-bleed dengan latar berbeda supaya kepisah jelas dari daftar layanan di atasnya
+    <section
+      id="promo"
+      aria-labelledby="promo-title"
+      className="relative left-1/2 w-screen -translate-x-1/2 scroll-mt-24 border-y border-slate-200 bg-gradient-to-b from-slate-100 via-white to-white py-16 sm:py-20 dark:border-slate-800 dark:from-slate-900 dark:via-[var(--bg-base)] dark:to-[var(--bg-base)]"
+    >
+      <div className="mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8">
+      {isLoading && <SkeletonBlock className="h-64" aria-busy />}
       {isError && <ErrorState title="Promo belum bisa dimuat" message={(error as Error)?.message} onRetry={() => refetch()} />}
       {promos.length > 0 && (
-        <ul className="grid gap-4 md:grid-cols-3">
-          {promos.map((p) => (
-            <li key={p.id} className={clsx(card, 'flex flex-col gap-3.5 p-6')}>
-              <div className="flex items-center justify-between gap-3">
-                <span className="rounded-plate bg-slate-900 px-3 py-1.5 font-mono text-[15px] font-semibold tracking-wide text-white ring-1 ring-inset ring-white/25 dark:bg-slate-950 dark:outline dark:outline-1 dark:outline-slate-600">
-                  <span className="sr-only">Kode promo </span>
-                  {p.code}
-                </span>
-                <span className="text-[26px] font-extrabold text-orange-700 dark:text-orange-400">{p.discount_percent}%</span>
-              </div>
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white">{p.title}</h3>
-              <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-400">{p.description}</p>
-              <p className="mt-auto inline-flex items-center gap-1.5 text-[13px] text-slate-600 dark:text-slate-400">
-                <Tag className="h-3.5 w-3.5" aria-hidden />
-                Berlaku sampai {formatDate(p.valid_until, { day: 'numeric', month: 'long', year: 'numeric' })}
+        <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-20">
+          {/* Kiri: teks penjelasan */}
+          <div>
+            <h2
+              id="promo-title"
+              className="text-[38px] sm:text-[52px] font-extrabold leading-[1.05] tracking-[-0.02em] text-slate-900 dark:text-white"
+            >
+              Diskon yang bisa
+              <br />
+              <span className="text-accent-600 dark:text-accent-500">langsung dipakai</span>
+            </h2>
+            <p className={clsx(lead, 'mt-5 max-w-[440px]')}>
+              Masukkan kode promo di ringkasan booking, potongannya langsung menghitung ulang estimasi biaya.
+            </p>
+            <ul className="mt-7 space-y-3.5">
+              {['Tanpa syarat minimum belanja', 'Berlaku untuk semua kategori layanan', 'Satu kode untuk satu booking'].map(
+                (t) => (
+                  <li key={t} className="flex items-center gap-3 text-[15px] font-medium text-slate-700 dark:text-slate-300">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent-500/15 text-accent-600 dark:text-accent-500">
+                      <Tag className="h-3.5 w-3.5" aria-hidden />
+                    </span>
+                    {t}
+                  </li>
+                )
+              )}
+            </ul>
+            <Link
+              href={`/booking/new?promo=${encodeURIComponent(promos[0].code)}`}
+              className="mt-9 inline-flex min-h-[50px] items-center justify-center rounded-ctl bg-slate-900 px-7 font-semibold text-white transition-colors hover:bg-black dark:bg-slate-700 dark:hover:bg-slate-600"
+            >
+              Booking pakai {promos[0].code}
+            </Link>
+          </div>
+
+          {/* Kanan: mockup tablet + hp berisi voucher */}
+          <div aria-hidden className="group relative mx-auto w-full max-w-[520px] select-none pb-8 pr-6">
+            {/* Blob gradasi oranye di belakang perangkat */}
+            <div
+              className="absolute -inset-6 rounded-full opacity-60 blur-3xl"
+              style={{ background: 'radial-gradient(closest-side, rgba(249,115,22,0.35), transparent)' }}
+            />
+            {/* Badge diskon melayang */}
+            <div className="absolute -left-5 -top-9 z-10 rotate-[-8deg] rounded-xl bg-accent-500 px-4 py-2 text-lg font-extrabold text-slate-950 shadow-lg">
+              -{Math.max(...promos.map((p) => p.discount_percent))}%
+            </div>
+            {/* Tablet */}
+            <div className="relative -rotate-2 rounded-[28px] border-[10px] border-slate-900 bg-slate-50 p-5 shadow-2xl transition-transform duration-500 group-hover:rotate-0 dark:border-slate-700 dark:bg-slate-900">
+              <p className="text-[13px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                Voucher kamu
               </p>
-              <Link
-                href={`/booking/new?promo=${encodeURIComponent(p.code)}`}
-                className="inline-flex min-h-[44px] items-center justify-center rounded-ctl border border-slate-300 px-4 text-[15px] font-semibold text-slate-900 hover:bg-slate-50 dark:border-slate-700 dark:text-white dark:hover:bg-slate-800 transition-colors"
-              >
-                Booking pakai {p.code}
-              </Link>
-            </li>
-          ))}
-        </ul>
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                {promos.slice(0, 4).map((p) => (
+                  <Voucher key={p.id} p={p} />
+                ))}
+              </div>
+            </div>
+            {/* HP, menimpa pojok kanan bawah tablet */}
+            <div className="absolute -bottom-0 -right-0 w-[180px] rotate-3 rounded-[24px] border-[8px] border-slate-900 bg-slate-50 p-2.5 shadow-2xl transition-transform duration-500 group-hover:rotate-0 dark:border-slate-700 dark:bg-slate-900">
+              <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-slate-300 dark:bg-slate-600" />
+              <div className="space-y-2">
+                {promos.slice(0, 2).map((p) => (
+                  <Voucher key={p.id} p={p} compact />
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
       )}
-    </section>
-  );
-}
-
-// ---------------------------------------------------------------------------
-
-function FinalCta() {
-  return (
-    <section className="flex flex-col gap-7 rounded-[28px] bg-primary-600 px-6 py-12 sm:flex-row sm:items-center sm:justify-between sm:px-12 sm:py-14">
-      <div className="max-w-xl space-y-2.5">
-        <h2 className="text-[30px] sm:text-[40px] font-extrabold leading-[1.1] tracking-[-0.015em] text-white">
-          Servis berikutnya, booking dari sini.
-        </h2>
-        <p className="text-[17px] leading-relaxed text-blue-100">
-          Simpan kendaraanmu sekali, booking ulang tinggal beberapa ketuk.
-        </p>
       </div>
-      <Link href="/booking/new" className={clsx(ctaAccent, 'min-h-[56px] shrink-0 text-lg')}>
-        Booking servis sekarang
-      </Link>
     </section>
   );
 }
+
