@@ -1,17 +1,17 @@
-﻿'use client';
+'use client';
 
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { CalendarPlus, Car, ChevronDown, Clock, Cog, Disc3, Droplets, LayoutGrid, MapPin, Phone, Search, Snowflake, Sparkles, Tag, Wrench, Zap } from 'lucide-react';
+import { CalendarPlus, Car, ChevronDown, Clock, Cog, Disc3, Droplets, LayoutGrid, MapPin, Search, Snowflake, Sparkles, Tag, Wrench, Zap } from 'lucide-react';
 import { clsx } from 'clsx';
 import { fetcher } from '@/lib/fetcher';
-import { formatDate, formatDuration, formatRp, shortBranchName } from '@/lib/format';
-import { OPERATING_SLOTS } from '@/lib/wib';
+import { formatDuration, formatRp, shortBranchName } from '@/lib/format';
 import { WorkshopHero } from '@/components/illustrations/workshop';
 import { Plate } from '@/components/customer/plate';
 import { EmptyState, ErrorState, SkeletonBlock } from '@/components/customer/states';
 import { SERVICE_CATEGORIES, getServiceCategory, type ServiceCategoryId } from '@/components/customer/booking/service-selector';
+import { INDONESIA_DOTS } from '@/components/customer/indonesia-dots';
 
 /*
  * Landing untuk tamu (desain: canvas "ServiceGo Landing Page" di Claude Design).
@@ -47,33 +47,134 @@ interface Promo {
 
 const ctaAccent =
   'inline-flex min-h-[52px] items-center justify-center gap-2.5 rounded-ctl bg-accent-500 px-6 text-[17px] font-bold text-slate-950 hover:bg-accent-600 transition-colors';
-const ctaGhost =
-  'inline-flex min-h-[52px] items-center justify-center rounded-ctl border border-slate-300 bg-white px-6 text-[17px] font-semibold text-slate-900 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:hover:bg-slate-800 transition-colors';
 const card = 'rounded-[20px] border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900';
 const h2 = 'text-[30px] sm:text-[40px] font-extrabold leading-[1.1] tracking-[-0.015em] text-slate-900 dark:text-white';
 const lead = 'text-[17px] leading-relaxed text-slate-600 dark:text-slate-400';
-const eyebrow = 'text-[15px] font-bold text-slate-500 dark:text-slate-400';
 
-/** "08.00 sampai 16.00 WIB", dari jam slot yang dipakai API booking. */
-const SLOT_RANGE = `${OPERATING_SLOTS[0].replace(':', '.')} sampai ${OPERATING_SLOTS[OPERATING_SLOTS.length - 1].replace(':', '.')} WIB`;
+/**
+ * Memunculkan isinya dengan animasi naik-memudar saat masuk layar.
+ * `fadeOut` membuatnya memudar lagi saat keluar layar, jadi section atas hilang
+ * sementara section bawah muncul.
+ */
+function Reveal({
+  children,
+  delay = 0,
+  fadeOut = false
+}: {
+  children: React.ReactNode;
+  delay?: number;
+  fadeOut?: boolean;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [shown, setShown] = useState(false);
+
+  // Muncul sekali saat masuk layar (tanpa fadeOut).
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || fadeOut) return;
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setShown(true);
+          io.disconnect();
+        }
+      },
+      { rootMargin: '0px 0px -12% 0px' }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [fadeOut]);
+
+  /*
+   * fadeOut: opacity dihitung tiap frame dari posisi elemen terhadap layar, bukan
+   * dinyalakan/dimatikan di satu ambang — supaya perubahannya mengikuti scroll dan terasa mulus.
+   */
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !fadeOut) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    let raf = 0;
+    const hitung = () => {
+      raf = 0;
+      const r = el.getBoundingClientRect();
+      const vh = window.innerHeight;
+      const jepit = (n: number) => Math.min(1, Math.max(0, n));
+      const masuk = jepit((vh - r.top) / (vh * 0.4)); // naik saat tepi atas masuk layar
+      const keluar = jepit(r.bottom / (vh * 0.5)); // turun saat tepi bawah mendekati atas layar
+      const nilai = Math.min(masuk, keluar);
+      el.style.opacity = String(nilai);
+      el.style.transform = `translateY(${((1 - nilai) * 28).toFixed(1)}px)`;
+    };
+    const saatScroll = () => {
+      if (!raf) raf = requestAnimationFrame(hitung);
+    };
+
+    hitung();
+    window.addEventListener('scroll', saatScroll, { passive: true });
+    window.addEventListener('resize', saatScroll);
+    return () => {
+      window.removeEventListener('scroll', saatScroll);
+      window.removeEventListener('resize', saatScroll);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, [fadeOut]);
+
+  return (
+    <div
+      ref={ref}
+      style={fadeOut ? undefined : { transitionDelay: shown ? `${delay}ms` : '0ms' }}
+      className={
+        fadeOut
+          ? 'will-change-[opacity,transform]'
+          : clsx(
+              'transition-[opacity,transform] duration-700 ease-out motion-reduce:transition-none',
+              shown ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'
+            )
+      }
+    >
+      {children}
+    </div>
+  );
+}
 
 export function GuestLanding() {
   const branchesQuery = useQuery<Branch[]>({ queryKey: ['branches'], queryFn: () => fetcher('/branches') });
   const mainBranch = branchesQuery.data?.[0] ?? null;
 
   return (
-    <div className="space-y-20 sm:space-y-24 overflow-x-clip">
+    <div className="space-y-20 sm:space-y-24">
       {/* Dibungkus satu div agar space-y parent tidak menyisipkan celah putih antara hero & strip */}
       <div>
         <Hero branch={mainBranch} />
         <CategoryStrip />
       </div>
-      <div className="mx-auto max-w-[1440px] px-4 sm:px-6 lg:px-8 space-y-20 sm:space-y-24">
-        <PriceSection />
-        <PromoSection />
-        <LocationSection query={branchesQuery} />
-        <HowItWorks />
+      {/* Layanan memudar keluar saat diskon mulai masuk layar. */}
+      <div className="mx-auto max-w-[1440px] px-4 sm:px-6 lg:px-8">
+        <Reveal fadeOut>
+          <PriceSection />
+        </Reveal>
       </div>
+
+      {/* Diskon menempel di layar, lalu tertutup section lokasi yang naik menimpanya. */}
+      <div className="relative">
+        <div className="sticky top-20">
+          <Reveal fadeOut>
+            <PromoSection />
+          </Reveal>
+        </div>
+        <div className="relative z-10 bg-[var(--bg-base)] pt-20 sm:pt-24">
+          <div className="mx-auto max-w-[1440px] px-4 sm:px-6 lg:px-8">
+            <Reveal>
+              <LocationSection query={branchesQuery} />
+            </Reveal>
+          </div>
+        </div>
+      </div>
+
+      <Reveal>
+        <HowItWorks />
+      </Reveal>
     </div>
   );
 }
@@ -152,32 +253,6 @@ function Hero({ branch }: { branch: Branch | null }) {
         </div>
       </div>
 
-      {/* BOTTOM SECTION: metrik bengkel di kanan */}
-      <div className="relative z-10 mx-auto w-full max-w-[1440px] px-4 pb-8 sm:px-6 sm:pb-12 lg:px-8 flex justify-center">
-
-        {/* Kanan: Quick Specs / Metrik Bengkel (seperti metrik 0-100km/h di referensi Lumen S) */}
-        <div
-          className={clsx(
-            'hidden sm:flex items-center gap-6 md:gap-8 text-center transition-all duration-1000 delay-500 ease-out select-none',
-            revealed ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0 pointer-events-none'
-          )}
-        >
-          <div className="space-y-0.5">
-            <p className="text-[11px] text-slate-400 font-medium uppercase tracking-wider">Jam Operasional</p>
-            <p className="text-base sm:text-lg font-bold text-white">08.00 - 16.00 WIB</p>
-          </div>
-          <div className="h-8 w-px bg-white/20" />
-          <div className="space-y-0.5">
-            <p className="text-[11px] text-slate-400 font-medium uppercase tracking-wider">Layanan Tersedia</p>
-            <p className="text-base sm:text-lg font-bold text-white">22+ Paket</p>
-          </div>
-          <div className="h-8 w-px bg-white/20" />
-          <div className="space-y-0.5">
-            <p className="text-[11px] text-slate-400 font-medium uppercase tracking-wider">Rating Pelanggan</p>
-            <p className="text-base sm:text-lg font-bold text-white">★ 4.9 / 5.0</p>
-          </div>
-        </div>
-      </div>
     </section>
   );
 }
@@ -251,9 +326,10 @@ function PriceSection() {
   }, [services]);
   const cats = SERVICE_CATEGORIES.filter((c) => grouped.has(c.id));
   const [picked, setPicked] = useState<ServiceCategoryId | 'all'>('all');
-  const [catsOpen, setCatsOpen] = useState(true);
+  const [catsOpen, setCatsOpen] = useState(false); // tertutup dulu, dibuka sendiri oleh pengguna
   const [search, setSearch] = useState('');
   const [detail, setDetail] = useState<Service | null>(null);
+  const [showAll, setShowAll] = useState(false);
   const active = picked !== 'all' && grouped.has(picked) ? picked : 'all';
   const q = search.trim().toLowerCase();
   // Saat mencari: cari di semua kategori, bukan cuma yang dipilih.
@@ -262,6 +338,9 @@ function PriceSection() {
     : active === 'all'
       ? services
       : grouped.get(active) ?? [];
+  // Tampilkan sebagian dulu supaya tidak perlu scroll panjang.
+  const LIMIT = 6;
+  const shown = showAll ? list : list.slice(0, LIMIT);
 
   return (
     <section id="harga" aria-labelledby="harga-title" className="scroll-mt-24 space-y-7">
@@ -300,6 +379,7 @@ function PriceSection() {
               onClick={() => {
                 setPicked('all');
                 setSearch('');
+                setShowAll(false);
               }}
               className={clsx(
                 'flex w-full min-h-[44px] items-center gap-3 rounded-ctl px-4 text-[15px] font-semibold transition-colors',
@@ -313,9 +393,6 @@ function PriceSection() {
                 aria-hidden
               />
               <span className="flex-1 text-left">Semua</span>
-              <span className={clsx('text-sm', !q && active === 'all' ? 'text-slate-300' : 'text-slate-500 dark:text-slate-400')}>
-                {services.length}
-              </span>
             </button>
 
             {/* Dropdown: buka/tutup daftar kategori */}
@@ -343,6 +420,7 @@ function PriceSection() {
                   onClick={() => {
                     setPicked(c.id);
                     setSearch('');
+                    setShowAll(false);
                   }}
                   className={clsx(
                     'flex w-full min-h-[44px] items-center gap-3 rounded-ctl px-4 text-[15px] font-semibold transition-colors',
@@ -353,9 +431,6 @@ function PriceSection() {
                 >
                   <Icon className={clsx('h-4.5 w-4.5 h-[18px] w-[18px] shrink-0', on ? 'text-white' : 'text-slate-500 dark:text-slate-400')} aria-hidden />
                   <span className="flex-1 text-left">{c.label}</span>
-                  <span className={clsx('text-sm', on ? 'text-slate-300' : 'text-slate-500 dark:text-slate-400')}>
-                    {grouped.get(c.id)?.length}
-                  </span>
                 </button>
               );
             })}
@@ -368,7 +443,10 @@ function PriceSection() {
               <input
                 type="search"
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setShowAll(false);
+                }}
                 placeholder="Cari layanan, misal: ganti oli"
                 aria-label="Cari layanan"
                 className="h-12 w-full rounded-ctl border border-slate-300 bg-white pl-11 pr-4 text-[15px] text-slate-900 placeholder:text-slate-400 focus:border-slate-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
@@ -378,10 +456,11 @@ function PriceSection() {
               <EmptyState icon={Search} title="Tidak ada layanan yang cocok" description={`Tidak ada hasil untuk "${search.trim()}".`} />
             )}
             <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {list.map((s) => {
+            {shown.map((s, i) => {
               const Icon = CATEGORY_ICONS[getServiceCategory(s.name, s.description)];
               return (
                 <li key={s.id}>
+                  <Reveal delay={(i % 3) * 90}>
                   <button
                     type="button"
                     onClick={() => setDetail(s)}
@@ -404,10 +483,24 @@ function PriceSection() {
                       </span>
                     </span>
                   </button>
+                  </Reveal>
                 </li>
               );
             })}
             </ul>
+
+            {list.length > LIMIT && (
+              <div className="flex justify-center pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAll((v) => !v)}
+                  className="inline-flex min-h-[48px] items-center gap-2 rounded-ctl border border-slate-300 bg-white px-6 text-[15px] font-semibold text-slate-900 transition-colors hover:border-slate-400 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:hover:bg-slate-800"
+                >
+                  {showAll ? 'Tampilkan lebih sedikit' : 'Tampilkan lebih banyak'}
+                  <ChevronDown className={clsx('h-4 w-4 transition-transform', showAll && 'rotate-180')} aria-hidden />
+                </button>
+              </div>
+            )}
           </div>
           </div>
         </div>
@@ -506,11 +599,11 @@ const STEPS = [
 
 function HowItWorks() {
   return (
-    // Full-bleed: section keluar dari container pakai w-screen + translate
+    // Section ini anak langsung pembungkus lebar penuh, jadi tidak perlu trik w-screen.
     <section
       id="cara"
       aria-labelledby="cara-title"
-      className="relative left-1/2 w-screen -translate-x-1/2 scroll-mt-24 overflow-hidden bg-slate-950 pb-28 pt-16 text-white sm:pb-36 sm:pt-24"
+      className="relative scroll-mt-24 overflow-hidden bg-slate-950 pb-28 pt-16 text-white sm:pb-36 sm:pt-24"
     >
       <div className="mx-auto grid max-w-[1100px] gap-14 px-4 sm:px-6 lg:grid-cols-[1.15fr_1fr] lg:items-center lg:gap-16 lg:px-8">
         {/* Kiri: judul + CTA */}
@@ -568,141 +661,133 @@ function HowItWorks() {
 
 // ---------------------------------------------------------------------------
 
-/** "Jl. Margonda Raya No. 45, Beji, Kota Depok" menjadi "Beji, Kota Depok" (tanpa nama jalan). */
-function shortAddress(address: string) {
-  const parts = address.split(',').map((p) => p.trim()).filter(Boolean);
-  return parts.length > 1 ? parts.slice(1).join(', ') : address;
+const mapSearchUrl = (address: string) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+
+/**
+ * Foto & titik koordinat tiap cabang, dicocokkan dari kata kunci di nama/alamat.
+ * shortcut: cabang baru perlu ditambahkan manual di sini; pindahkan ke kolom database kalau cabang sudah banyak.
+ */
+const BRANCH_SPOTS: Record<string, { photo: string; lon: number; lat: number }> = {
+  margonda: { photo: '/images/branches/depok-margonda.jpg', lon: 106.83, lat: -6.4 },
+  cinere: { photo: '/images/branches/depok-cinere.jpg', lon: 106.78, lat: -6.33 },
+  fatmawati: { photo: '/images/branches/jakarta-fatmawati.jpg', lon: 106.8, lat: -6.29 },
+  'kebon jeruk': { photo: '/images/branches/jakarta-kebonjeruk.jpg', lon: 106.77, lat: -6.19 },
+  pajajaran: { photo: '/images/branches/bogor-pajajaran.jpeg', lon: 106.8, lat: -6.6 }
+};
+
+function branchSpot(b: Branch) {
+  const text = `${b.name} ${b.address}`.toLowerCase();
+  const hit = Object.entries(BRANCH_SPOTS).find(([k]) => text.includes(k))?.[1];
+  return hit ?? { photo: null as string | null, lon: 106.83, lat: -6.4 };
 }
 
-const mapEmbedUrl = (address: string) => `https://www.google.com/maps?q=${encodeURIComponent(address)}&output=embed`;
-const mapSearchUrl = (address: string) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+// Peta memakai viewBox 940x340: lon 94,5-141,5 BT dan lat 6,5 LU-10,5 LS.
+const mapX = (lon: number) => (lon - 94.5) * 20;
+const mapY = (lat: number) => (6.5 - lat) * 20;
+
+/** Peta Indonesia bergaya titik-titik. Penanda lokasi diklik untuk melihat foto bengkel. */
+function DottedIndonesiaMap({ branch, onPinClick }: { branch: Branch; onPinClick: () => void }) {
+  const spot = branchSpot(branch);
+  const x = mapX(spot.lon);
+  const y = mapY(spot.lat);
+
+  return (
+    <svg viewBox="-8 4 956 356" preserveAspectRatio="xMidYMid meet" className="w-full" role="img" aria-label={`Peta Indonesia dengan lokasi ${branch.name}`}>
+      {/* Tiap titik berdiri sendiri, jadi tidak ada dot yang terpotong garis pantai. */}
+      <g fill="#F97316">
+        {Array.from({ length: INDONESIA_DOTS.length / 2 }, (_, i) => (
+          <circle key={i} cx={INDONESIA_DOTS[i * 2]} cy={INDONESIA_DOTS[i * 2 + 1]} r="2.5" />
+        ))}
+      </g>
+
+      {/* Penanda lokasi bengkel */}
+      <g className="cursor-pointer" onClick={onPinClick} role="button" aria-label={`Lihat detail ${branch.name}`}>
+        <circle cx={x} cy={y} r="16" fill="#F97316" fillOpacity="0.3">
+          <animate attributeName="r" values="12;30;12" dur="2.6s" repeatCount="indefinite" />
+          <animate attributeName="fill-opacity" values="0.35;0;0.35" dur="2.6s" repeatCount="indefinite" />
+        </circle>
+        <circle cx={x} cy={y} r="9" fill="#EA580C" stroke="#fff" strokeWidth="3.5" />
+        <circle cx={x} cy={y} r="30" fill="transparent" />
+        <text x={x} y={y + 38} textAnchor="middle" className="fill-slate-900 dark:fill-white" fontSize="19" fontWeight="700">
+          {shortBranchName(branch.name)}
+        </text>
+      </g>
+    </svg>
+  );
+}
+
+/** Kartu detail bengkel di sisi kanan peta; diklik membuka alamatnya di Google Maps. */
+function BranchCard({ branch }: { branch: Branch }) {
+  const spot = branchSpot(branch);
+
+  return (
+    <a
+      href={mapSearchUrl(branch.address)}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={clsx(
+        card,
+        'group block overflow-hidden rounded-[20px] transition-shadow hover:shadow-xl'
+      )}
+    >
+      {spot.photo ? (
+        <img
+          src={spot.photo}
+          alt={`Foto ${branch.name}`}
+          className="h-40 w-full object-cover transition-transform duration-500 group-hover:scale-105"
+        />
+      ) : (
+        <div className="flex h-40 w-full items-center justify-center bg-slate-100 text-slate-400 dark:bg-slate-800">
+          <MapPin className="h-8 w-8" aria-hidden />
+        </div>
+      )}
+      <div className="space-y-2 p-5">
+        <p className="font-bold text-slate-900 dark:text-white">{branch.name}</p>
+        <p className="flex gap-2 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
+          <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" aria-hidden />
+          {branch.address}
+        </p>
+        <span className="sr-only">Buka alamat ini di Google Maps (tab baru)</span>
+      </div>
+    </a>
+  );
+}
 
 function LocationSection({
   query
 }: {
   query: { data?: Branch[]; isLoading: boolean; isError: boolean; error: unknown; refetch: () => unknown };
 }) {
-  const branches = query.data ?? [];
-  const main = branches[0] ?? null;
-  const others = branches.slice(1);
-  const tel = (phone: string) => phone.replace(/[^0-9+]/g, '');
+  const main = query.data?.[0] ?? null;
+  const [openCard, setOpenCard] = useState(false);
 
   return (
     <section id="lokasi" aria-labelledby="lokasi-title" className="scroll-mt-24">
-      <div className="grid gap-4 lg:grid-cols-[1.35fr_1fr] lg:gap-6">
-        {/* Peta: alamat dari API, jadi ubah alamat di database langsung mengubah peta. */}
-        <div className="relative h-80 min-h-[320px] overflow-hidden rounded-[28px] border border-slate-200 bg-slate-100 lg:h-full lg:min-h-[440px] dark:border-slate-800 dark:bg-slate-800">
-          {query.isLoading && <SkeletonBlock className="absolute inset-0 h-full w-full" />}
-          {!query.isLoading && main && (
-            <iframe
-              src={mapEmbedUrl(main.address)}
-              loading="lazy"
-              referrerPolicy="no-referrer-when-downgrade"
-              title={`Peta lokasi ${main.name}`}
-              className="absolute inset-0 h-full w-full border-0"
-              allowFullScreen
-            />
-          )}
-          {!query.isLoading && !main && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-6 text-center text-slate-600 dark:text-slate-400">
-              <MapPin className="h-8 w-8" aria-hidden />
-              <p className="text-sm">{query.isError ? 'Peta belum bisa ditampilkan.' : 'Peta akan tampil setelah lokasi bengkel terdaftar.'}</p>
-            </div>
-          )}
-        </div>
+      <h2 id="lokasi-title" className={clsx(h2, 'text-center')}>
+        Lokasi kami
+      </h2>
 
-        <div className={clsx(card, 'flex flex-col gap-5 rounded-[28px] p-6 sm:p-8 lg:p-10')}>
-          <div className="space-y-2">
-            <p className={eyebrow}>Lokasi bengkel</p>
-            <h2 id="lokasi-title" className="text-[28px] sm:text-[34px] font-extrabold leading-[1.1] tracking-[-0.015em] text-slate-900 dark:text-white">
-              {main ? main.name : 'Bengkel ServiceGo'}
-            </h2>
+      {/* Peta titik-titik dari data geografis asli; posisi penanda ikut data cabang dari API. */}
+      {query.isLoading && <SkeletonBlock className="mt-10 h-[300px] w-full" />}
+      {!query.isLoading && main && (
+        <div className="mt-8 flex flex-col lg:flex-row lg:items-center">
+          {/* Peta melebar penuh; menyusut sendiri saat kolom kartu di sebelahnya terbuka. */}
+          <div className="w-full min-w-0 lg:flex-1">
+            <DottedIndonesiaMap branch={main} onPinClick={() => setOpenCard((v) => !v)} />
           </div>
-
-          {query.isLoading && (
-            <div className="space-y-3" aria-busy>
-              <SkeletonBlock className="h-5 w-4/5" />
-              <SkeletonBlock className="h-5 w-2/5" />
-              <SkeletonBlock className="h-5 w-3/5" />
-              <SkeletonBlock className="mt-4 h-[52px] w-full sm:w-48" />
+          {/* Tidak dirender saat tertutup: kartu selebar 22rem akan meluber keluar layar kalau hanya disembunyikan. */}
+          {openCard && (
+            <div className="muncul-halus mt-8 w-full shrink-0 lg:mt-0 lg:w-[22rem] lg:pl-8">
+              <BranchCard branch={main} />
             </div>
           )}
-          {query.isError && (
-            <ErrorState
-              title="Data lokasi belum bisa dimuat"
-              message={(query.error as Error)?.message}
-              onRetry={() => query.refetch()}
-            />
-          )}
-          {!query.isLoading && !query.isError && !main && (
-            <EmptyState icon={MapPin} title="Lokasi bengkel belum terdaftar" />
-          )}
-
-          {main && (
-            <>
-              <ul className="space-y-3.5 text-[15px] text-slate-700 dark:text-slate-300">
-                <li className="flex items-start gap-3">
-                  <MapPin className="mt-0.5 h-5 w-5 shrink-0 text-slate-500 dark:text-slate-400" aria-hidden />
-                  <span>
-                    <span className="sr-only">Alamat: </span>
-                    {main.address}
-                  </span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <Clock className="mt-0.5 h-5 w-5 shrink-0 text-slate-500 dark:text-slate-400" aria-hidden />
-                  <span>
-                    <span className="sr-only">Jam datang: </span>
-                    Slot datang {SLOT_RANGE}
-                  </span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <Phone className="mt-0.5 h-5 w-5 shrink-0 text-slate-500 dark:text-slate-400" aria-hidden />
-                  <a
-                    href={`tel:${tel(main.phone)}`}
-                    className="-my-3 inline-flex min-h-[44px] items-center font-mono font-semibold text-slate-900 hover:underline dark:text-white"
-                  >
-                    <span className="sr-only">Telepon </span>
-                    {main.phone}
-                  </a>
-                </li>
-              </ul>
-              <p className="text-sm text-slate-600 dark:text-slate-400">Telepon bengkel kalau perlu ubah jadwal.</p>
-              <div className="mt-auto flex flex-col gap-3 pt-1 sm:flex-row sm:flex-wrap">
-                <Link
-                  href={`/booking/new?branch_id=${main.id}`}
-                  className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-ctl bg-slate-900 px-6 text-[17px] font-bold text-white hover:bg-black dark:bg-slate-700 dark:hover:bg-slate-600 transition-colors"
-                >
-                  <CalendarPlus className="h-5 w-5" aria-hidden />
-                  Booking di sini
-                </Link>
-                <a href={mapSearchUrl(main.address)} target="_blank" rel="noopener noreferrer" className={ctaGhost}>
-                  Buka di Google Maps
-                  <span className="sr-only"> (tab baru)</span>
-                </a>
-              </div>
-            </>
-          )}
         </div>
-      </div>
-
-      {/* Data lama dengan lebih dari satu lokasi tetap ditampilkan ringkas. */}
-      {others.length > 0 && (
-        <ul className="mt-4 grid gap-3 md:grid-cols-2">
-          {others.map((b) => (
-            <li key={b.id} className={clsx(card, 'flex flex-wrap items-center justify-between gap-3 p-5')}>
-              <div className="min-w-0">
-                <p className="font-bold text-slate-900 dark:text-white">{shortBranchName(b.name)}</p>
-                <p className="text-sm text-slate-600 dark:text-slate-400">{b.address}</p>
-              </div>
-              <Link
-                href={`/booking/new?branch_id=${b.id}`}
-                className="inline-flex min-h-[44px] items-center rounded-ctl border border-slate-300 px-3.5 text-sm font-semibold text-slate-900 hover:bg-slate-50 dark:border-slate-700 dark:text-white dark:hover:bg-slate-800 transition-colors"
-              >
-                Booking di sini
-              </Link>
-            </li>
-          ))}
-        </ul>
+      )}
+      {!query.isLoading && !main && (
+        <div className="flex flex-col items-center justify-center gap-3 py-16 text-center text-slate-500 dark:text-slate-400">
+          <MapPin className="h-8 w-8" aria-hidden />
+          <p className="text-sm">{query.isError ? 'Peta belum bisa ditampilkan.' : 'Peta akan tampil setelah lokasi bengkel terdaftar.'}</p>
+        </div>
       )}
     </section>
   );
@@ -711,12 +796,13 @@ function LocationSection({
 // ---------------------------------------------------------------------------
 
 function PromoSection() {
-  const { data, isLoading, isError, error, refetch } = useQuery<Promo[]>({
+  const { data, isLoading } = useQuery<Promo[]>({
     queryKey: ['promos'],
     queryFn: () => fetcher('/promos')
   });
   const promos = (data ?? []).filter((p) => p.is_active);
-  if (!isLoading && !isError && promos.length === 0) return null; // tidak ada promo: bagian disembunyikan
+  // Tidak ada promo (termasuk saat API gagal): bagian disembunyikan, bukan menampilkan error ke pengunjung.
+  if (!isLoading && promos.length === 0) return null;
 
   // Voucher mini yang dirender di dalam frame hp/tablet.
   // Tiket dua bagian: stub oranye kiri berisi persen, sobekan berlubang + garis putus-putus di tengah.
@@ -759,11 +845,10 @@ function PromoSection() {
     <section
       id="promo"
       aria-labelledby="promo-title"
-      className="relative left-1/2 w-screen -translate-x-1/2 scroll-mt-24 border-y border-slate-200 bg-gradient-to-b from-slate-100 via-white to-white py-16 sm:py-20 dark:border-slate-800 dark:from-slate-900 dark:via-[var(--bg-base)] dark:to-[var(--bg-base)]"
+      className="relative scroll-mt-24 border-y border-slate-200 bg-gradient-to-b from-slate-100 via-white to-white py-16 sm:py-20 dark:border-slate-800 dark:from-slate-900 dark:via-[var(--bg-base)] dark:to-[var(--bg-base)]"
     >
       <div className="mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8">
       {isLoading && <SkeletonBlock className="h-64" aria-busy />}
-      {isError && <ErrorState title="Promo belum bisa dimuat" message={(error as Error)?.message} onRetry={() => refetch()} />}
       {promos.length > 0 && (
         <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-20">
           {/* Kiri: teks penjelasan */}
@@ -791,12 +876,6 @@ function PromoSection() {
                 )
               )}
             </ul>
-            <Link
-              href={`/booking/new?promo=${encodeURIComponent(promos[0].code)}`}
-              className="mt-9 inline-flex min-h-[50px] items-center justify-center rounded-ctl bg-slate-900 px-7 font-semibold text-white transition-colors hover:bg-black dark:bg-slate-700 dark:hover:bg-slate-600"
-            >
-              Booking pakai {promos[0].code}
-            </Link>
           </div>
 
           {/* Kanan: mockup tablet + hp berisi voucher */}
