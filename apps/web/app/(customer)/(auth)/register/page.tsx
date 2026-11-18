@@ -20,7 +20,7 @@ const schema = z.object({
 type Form = z.infer<typeof schema>;
 
 const inputClass =
-  'h-12 w-full rounded-ctl border bg-white px-4 text-base text-slate-900 placeholder:text-slate-500 transition-colors dark:bg-slate-900 dark:text-white dark:placeholder:text-slate-500';
+  'h-12 w-full rounded-ctl border bg-slate-50/60 px-4 text-base text-slate-900 placeholder:text-slate-400 transition-all focus:border-primary-600 focus:bg-white focus:outline-none focus:ring-4 focus:ring-primary-600/10 dark:bg-slate-900 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-primary-500 dark:focus:bg-slate-900';
 
 function borderFor(error?: FieldError) {
   return error ? 'border-red-500 dark:border-red-500' : 'border-slate-300 dark:border-slate-700';
@@ -36,7 +36,7 @@ function FieldMessage({ id, error, hint }: { id: string; error?: FieldError; hin
   }
   if (hint) {
     return (
-      <p id={id} className="text-[13px] text-slate-600 dark:text-slate-400">
+      <p id={id} className="text-xs text-slate-500 dark:text-slate-400">
         {hint}
       </p>
     );
@@ -120,23 +120,21 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="space-y-8">
-      <div className="space-y-3">
-        <h1 className="text-[30px] sm:text-[40px] font-extrabold leading-[1.1] tracking-[-0.015em] text-slate-900 dark:text-white">Buat akun ServiceGo</h1>
-        <p className="text-[17px] leading-relaxed text-slate-600 dark:text-slate-400">
+    <div className="space-y-6">
+      <div className="space-y-2">
+        <h1 className="text-[32px] sm:text-[38px] font-extrabold leading-[1.12] tracking-[-0.02em] text-slate-900 dark:text-white">
+          Buat akun ServiceGo
+        </h1>
+        <p className="text-[16px] leading-relaxed text-slate-600 dark:text-slate-400">
           Satu akun untuk booking servis, menyimpan data kendaraan, dan melihat riwayat.
         </p>
       </div>
 
-      <form
-        onSubmit={handleSubmit(onSubmit)}
-        noValidate
-        className="space-y-5"
-      >
+      <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
         {formError && (
           <div
             role="alert"
-            className="flex gap-2 rounded-ctl border border-red-200 bg-red-50 px-3.5 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200"
+            className="flex gap-2.5 rounded-ctl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200"
           >
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
             <p>{formError}</p>
@@ -148,7 +146,7 @@ export default function RegisterPage() {
           const describedBy = error || hint ? `${id}-msg` : undefined;
           return (
             <div key={id} className="space-y-1.5">
-              <label htmlFor={id} className="block text-[15px] font-semibold text-slate-900 dark:text-slate-100">
+              <label htmlFor={id} className="block text-sm font-semibold text-slate-800 dark:text-slate-200">
                 {label}
               </label>
               <input
@@ -168,7 +166,7 @@ export default function RegisterPage() {
         })}
 
         <div className="space-y-1.5">
-          <label htmlFor="password" className="block text-[15px] font-semibold text-slate-900 dark:text-slate-100">
+          <label htmlFor="password" className="block text-sm font-semibold text-slate-800 dark:text-slate-200">
             Password
           </label>
           <div className="relative">
@@ -176,6 +174,7 @@ export default function RegisterPage() {
               id="password"
               type={showPw ? 'text' : 'password'}
               autoComplete="new-password"
+              placeholder="••••••••"
               aria-invalid={errors.password ? true : undefined}
               aria-describedby="password-msg"
               {...register('password')}
@@ -197,18 +196,18 @@ export default function RegisterPage() {
         <button
           type="submit"
           disabled={isSubmitting}
-          className="inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-ctl bg-primary-600 text-[17px] font-bold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-70 transition-colors"
+          className="inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-ctl bg-primary-600 text-[16px] font-bold text-white shadow-sm hover:bg-primary-700 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-70 transition-all"
         >
           {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
           {isSubmitting ? 'Sedang mendaftar...' : 'Buat akun'}
         </button>
       </form>
 
-      <p className="border-t border-slate-200 pt-6 text-[15px] text-slate-600 dark:border-slate-800 dark:text-slate-400">
+      <p className="border-t border-slate-200/80 pt-5 text-[15px] text-slate-600 dark:border-slate-800 dark:text-slate-400">
         Sudah punya akun?{' '}
         <Link
           href="/login"
-          className="inline-flex min-h-[44px] items-center font-semibold text-primary-700 hover:underline dark:text-primary-100"
+          className="inline-flex min-h-[40px] items-center font-semibold text-primary-600 hover:underline dark:text-primary-400"
         >
           Masuk di sini
         </Link>
