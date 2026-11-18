@@ -10,6 +10,7 @@ import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase-client';
 import { fetcher } from '@/lib/fetcher';
 import { shortBranchName } from '@/lib/format';
+import { OPERATING_SLOTS } from '@/lib/wib';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { useCustomerSupportChat } from '@/lib/support-chat';
 import { SupportChatDrawer } from './support-chat-drawer';
@@ -23,6 +24,16 @@ const NAV = [
   { href: '/profile', label: 'Profil', icon: User }
 ];
 
+const FOOTER_EXPLORE = [
+  { href: '/#harga', label: 'Harga layanan' },
+  { href: '/#cara', label: 'Cara kerja' },
+  { href: '/#lokasi', label: 'Lokasi bengkel' },
+  { href: '/#promo', label: 'Promo' },
+  { href: '/booking/new', label: 'Booking servis' }
+];
+
+const FOOTER_JAM = `${OPERATING_SLOTS[0].replace(':', '.')} - ${OPERATING_SLOTS[OPERATING_SLOTS.length - 1].replace(':', '.')} WIB`;
+
 interface BranchContact {
   id: string;
   name: string;
@@ -35,15 +46,14 @@ function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(href + '/');
 }
 
-function Wordmark() {
+function Wordmark({ isTransparent = false }: { isTransparent?: boolean }) {
   return (
-    <Link href="/" className="flex items-center gap-2 rounded-chip shrink-0" aria-label="ServiceGo, ke Beranda">
-      <span className="flex h-8 w-8 items-center justify-center rounded-chip bg-primary-600 text-white">
-        <Wrench className="h-4 w-4" aria-hidden />
-      </span>
-      <span className="text-[17px] font-bold tracking-tight text-slate-900 dark:text-white">
-        Service<span className="text-primary-600 dark:text-primary-500">Go</span>
-      </span>
+    <Link href="/" className="flex items-center rounded-chip shrink-0 group py-1" aria-label="ServiceGo, ke Beranda">
+      <img
+        src="/logo-servicego-full.png?v=6"
+        alt="ServiceGo Logo"
+        className="h-11 sm:h-14 w-auto object-contain transition-transform duration-300 group-hover:scale-105 drop-shadow-md"
+      />
     </Link>
   );
 }
@@ -97,6 +107,7 @@ export function CustomerShell({ children }: { children: React.ReactNode }) {
   }
 
   const onBookingFlow = pathname.startsWith('/booking/');
+  const isHome = pathname === '/';
 
   return (
     <div className="min-h-screen bg-[var(--bg-base)] flex flex-col">
@@ -107,10 +118,17 @@ export function CustomerShell({ children }: { children: React.ReactNode }) {
         Lewati ke konten
       </a>
 
-      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
+      <header
+        className={clsx(
+          'z-40 transition-colors',
+          isHome
+            ? 'absolute top-0 inset-x-0 bg-transparent border-none'
+            : 'sticky top-0 border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900'
+        )}
+      >
+        <div className="relative mx-auto flex h-16 sm:h-20 max-w-[1440px] items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-8">
-            <Wordmark />
+            <Wordmark isTransparent={isHome} />
             {session && (
               <nav aria-label="Navigasi utama" className="hidden md:flex items-center gap-1">
                 {NAV.map(({ href, label }) => {
@@ -122,9 +140,13 @@ export function CustomerShell({ children }: { children: React.ReactNode }) {
                       aria-current={active ? 'page' : undefined}
                       className={clsx(
                         'rounded-chip px-3 py-2 text-[15px] font-medium transition-colors',
-                        active
-                          ? 'text-primary-700 bg-primary-50 dark:text-primary-100 dark:bg-primary-900/50'
-                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-300 dark:hover:text-white dark:hover:bg-slate-800'
+                        isHome
+                          ? active
+                            ? 'text-white bg-white/20 font-semibold'
+                            : 'text-white/80 hover:text-white hover:bg-white/10'
+                          : active
+                            ? 'text-primary-700 bg-primary-50 dark:text-primary-100 dark:bg-primary-900/50'
+                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-300 dark:hover:text-white dark:hover:bg-slate-800'
                       )}
                     >
                       {label}
@@ -133,10 +155,36 @@ export function CustomerShell({ children }: { children: React.ReactNode }) {
                 })}
               </nav>
             )}
+            {!session && !loading && (
+              <nav
+                aria-label="Navigasi utama"
+                className="hidden md:flex items-center gap-1 absolute left-1/2 -translate-x-1/2"
+              >
+                {[
+                  { href: '/#harga', label: 'Harga' },
+                  { href: '/#cara', label: 'Cara Kerja' },
+                  { href: '/#lokasi', label: 'Lokasi' },
+                  { href: '/#promo', label: 'Promo' }
+                ].map(({ href, label }) => (
+                  <a
+                    key={href}
+                    href={href}
+                    className={clsx(
+                      'rounded-chip px-3 py-2 text-[15px] font-medium transition-colors',
+                      isHome
+                        ? 'text-white/80 hover:text-white hover:bg-white/10'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-300 dark:hover:text-white dark:hover:bg-slate-800'
+                    )}
+                  >
+                    {label}
+                  </a>
+                ))}
+              </nav>
+            )}
           </div>
 
           <div className="flex items-center gap-1 sm:gap-2">
-            <ThemeToggle />
+            <ThemeToggle className={isHome ? '!text-white hover:!bg-white/15' : ''} />
             <button
               type="button"
               onClick={() => setIsSupportOpen(true)}
@@ -146,7 +194,12 @@ export function CustomerShell({ children }: { children: React.ReactNode }) {
                   : 'Tanya CS ServiceGo'
               }
               title="Tanya CS ServiceGo"
-              className="relative inline-flex h-11 w-11 items-center justify-center rounded-ctl text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white transition-colors"
+              className={clsx(
+                'relative inline-flex h-11 w-11 items-center justify-center rounded-ctl transition-colors',
+                isHome
+                  ? 'text-white hover:bg-white/15'
+                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'
+              )}
             >
               <Headphones className="h-5 w-5" aria-hidden />
               {supportChat.unreadFromAdmin > 0 && (
@@ -160,7 +213,12 @@ export function CustomerShell({ children }: { children: React.ReactNode }) {
             {!session && !loading && (
               <Link
                 href="/login"
-                className="hidden sm:inline-flex h-11 items-center rounded-ctl px-3 text-[15px] font-semibold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800 transition-colors"
+                className={clsx(
+                  'hidden sm:inline-flex h-11 items-center rounded-ctl px-3 text-[15px] font-semibold transition-colors',
+                  isHome
+                    ? 'text-white hover:bg-white/15'
+                    : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'
+                )}
               >
                 Masuk
               </Link>
@@ -169,7 +227,7 @@ export function CustomerShell({ children }: { children: React.ReactNode }) {
             {!onBookingFlow && (
               <Link
                 href="/booking/new"
-                className="hidden sm:inline-flex h-11 items-center gap-2 rounded-ctl bg-accent-500 px-4 text-[15px] font-semibold text-slate-950 hover:bg-accent-600 transition-colors"
+                className="hidden sm:inline-flex h-11 items-center gap-2 rounded-ctl bg-accent-500 px-4 text-[15px] font-semibold text-slate-950 hover:bg-accent-600 transition-colors shadow-lg"
               >
                 <CalendarPlus className="h-4 w-4" aria-hidden />
                 Booking servis
@@ -182,7 +240,12 @@ export function CustomerShell({ children }: { children: React.ReactNode }) {
                 onClick={handleSignOut}
                 aria-label="Keluar dari akun"
                 title="Keluar"
-                className="hidden md:inline-flex h-11 w-11 items-center justify-center rounded-ctl text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white transition-colors"
+                className={clsx(
+                  'hidden md:inline-flex h-11 w-11 items-center justify-center rounded-ctl transition-colors',
+                  isHome
+                    ? 'text-white hover:bg-white/15'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'
+                )}
               >
                 <LogOut className="h-5 w-5" aria-hidden />
               </button>
@@ -191,14 +254,20 @@ export function CustomerShell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
-      <main id="konten" className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
+      <main
+        id="konten"
+        className={clsx(
+          'w-full flex-1',
+          isHome ? 'p-0' : 'mx-auto max-w-[1440px] px-4 py-6 sm:px-6 sm:py-8 lg:px-8'
+        )}
+      >
         {children}
       </main>
 
-      <footer className="border-t border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-        <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
-          <div className="flex flex-col gap-8 lg:flex-row lg:justify-between">
-            <div className="max-w-sm space-y-3">
+      <footer className="bg-white dark:bg-slate-900">
+        <div className="mx-auto max-w-[1440px] px-4 py-10 sm:px-6 lg:px-8">
+          <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="space-y-3">
               <Wordmark />
               <p className="text-sm text-slate-600 dark:text-slate-400">
                 Booking servis mobil dan motor di bengkel ServiceGo, lalu pantau pengerjaannya dari HP.
@@ -206,14 +275,56 @@ export function CustomerShell({ children }: { children: React.ReactNode }) {
               <button
                 type="button"
                 onClick={() => setIsSupportOpen(true)}
-                className="inline-flex min-h-[44px] items-center gap-2 text-sm font-semibold text-primary-700 hover:underline dark:text-primary-100"
+                className="inline-flex min-h-[44px] items-center gap-2 text-sm font-semibold text-accent-600 hover:underline dark:text-accent-500"
               >
                 <Headphones className="h-4 w-4" aria-hidden />
                 Tanya CS lewat chat
               </button>
             </div>
 
-            <div className="flex-1 lg:max-w-2xl">
+            <div>
+              <p className="mb-3 text-sm font-semibold text-slate-900 dark:text-white">Jelajahi</p>
+              <ul className="space-y-2 text-sm">
+                {FOOTER_EXPLORE.map(({ href, label }) => (
+                  <li key={href}>
+                    <Link
+                      href={href}
+                      className="text-slate-600 hover:text-slate-900 hover:underline dark:text-slate-400 dark:hover:text-white"
+                    >
+                      {label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div>
+              <p className="mb-3 text-sm font-semibold text-slate-900 dark:text-white">Akun</p>
+              <ul className="space-y-2 text-sm">
+                {(session
+                  ? [
+                      { href: '/bookings', label: 'Riwayat booking' },
+                      { href: '/notifications', label: 'Notifikasi' },
+                      { href: '/profile', label: 'Profil saya' }
+                    ]
+                  : [
+                      { href: '/login', label: 'Masuk' },
+                      { href: '/register', label: 'Daftar akun' }
+                    ]
+                ).map(({ href, label }) => (
+                  <li key={href}>
+                    <Link
+                      href={href}
+                      className="text-slate-600 hover:text-slate-900 hover:underline dark:text-slate-400 dark:hover:text-white"
+                    >
+                      {label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div>
               <p className="mb-3 text-sm font-semibold text-slate-900 dark:text-white">Hubungi bengkel</p>
               {branchesQuery.isLoading && <p className="text-sm text-slate-500">Memuat kontak bengkel...</p>}
               {branchesQuery.isError && (
@@ -230,7 +341,7 @@ export function CustomerShell({ children }: { children: React.ReactNode }) {
                   )}
                   <a
                     href={`tel:${branchesQuery.data[0].phone.replace(/[^0-9+]/g, '')}`}
-                    className="inline-flex min-h-[44px] items-center font-mono text-[13px] font-semibold text-slate-900 hover:text-primary-700 dark:text-slate-100 dark:hover:text-primary-100"
+                    className="inline-flex min-h-[44px] items-center font-mono text-[13px] font-semibold text-slate-900 hover:text-accent-600 dark:text-slate-100 dark:hover:text-accent-500"
                   >
                     <span className="sr-only">Telepon </span>
                     {branchesQuery.data[0].phone}
@@ -238,13 +349,13 @@ export function CustomerShell({ children }: { children: React.ReactNode }) {
                 </div>
               )}
               {branchesQuery.data && branchesQuery.data.length > 1 && (
-                <ul className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
+                <ul className="space-y-2">
                   {branchesQuery.data.map((b) => (
                     <li key={b.id} className="flex items-baseline justify-between gap-3 text-sm">
                       <span className="text-slate-700 dark:text-slate-300 truncate">{shortBranchName(b.name)}</span>
                       <a
                         href={`tel:${b.phone.replace(/[^0-9+]/g, '')}`}
-                        className="font-mono text-[13px] text-slate-900 hover:text-primary-700 dark:text-slate-100 dark:hover:text-primary-100 whitespace-nowrap"
+                        className="font-mono text-[13px] text-slate-900 hover:text-accent-600 dark:text-slate-100 dark:hover:text-accent-500 whitespace-nowrap"
                       >
                         {b.phone}
                       </a>
@@ -252,11 +363,15 @@ export function CustomerShell({ children }: { children: React.ReactNode }) {
                   ))}
                 </ul>
               )}
+              <p className="mt-4 flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                <Clock className="h-4 w-4 shrink-0" aria-hidden />
+                Buka setiap hari {FOOTER_JAM}
+              </p>
             </div>
           </div>
 
-          <div className="mt-8 flex flex-col gap-2 border-t border-slate-200 pt-6 text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400 sm:flex-row sm:justify-between">
-            <p>© {new Date().getFullYear()} ServiceGo</p>
+          <div className="mt-10 flex flex-col gap-2 border-t border-slate-200 pt-6 text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400 sm:flex-row sm:justify-between">
+            <p>© {new Date().getFullYear()} ServiceGo. Dibuat untuk Uji Kompetensi Keahlian.</p>
             {session && user?.email && <p className="truncate">Masuk sebagai {user.email}</p>}
           </div>
         </div>
