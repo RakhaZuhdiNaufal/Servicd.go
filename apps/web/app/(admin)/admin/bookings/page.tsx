@@ -18,7 +18,8 @@ import {
   Mail,
   MapPin,
   CalendarClock,
-  History
+  History,
+  Wallet
 } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, type DropResult } from '@hello-pangea/dnd';
 import { clsx } from 'clsx';
@@ -775,6 +776,13 @@ function BookingsPageContent() {
                     <span className="tabular-nums">{formatRp(toNumber(detailBooking.final_cost))}</span>
                   </div>
                 )}
+                <a
+                  href={`/admin/pembayaran?booking_id=${detailBooking.id}`}
+                  className="inline-flex min-h-[40px] items-center gap-1.5 rounded-ctl border border-slate-300 px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-800 transition-colors"
+                >
+                  <Wallet className="h-4 w-4" aria-hidden />
+                  Catat pembayaran
+                </a>
                 {detailBooking.complaint_notes && (
                   <div className="mt-2 rounded-ctl bg-slate-50 px-3 py-2.5 dark:bg-slate-800/60">
                     <p className="text-[13px] font-semibold text-slate-900 dark:text-white">Keluhan pelanggan</p>

@@ -1,16 +1,49 @@
 import { NextRequest } from 'next/server';
 import { prisma, BookingStatus, UserRole } from '@servicego/database';
-import { apiSuccess, apiError, apiCatch } from '@/lib/response';
+import { apiSuccess, apiCatch } from '@/lib/response';
+import { getStockAlerts } from '@/lib/stock-alerts';
+import { todayWIB, toWIBParts, wibDayRange } from '@/lib/wib';
 
-export async function GET(request: NextRequest) {
+/** Panjang grafik tren di dashboard (hari kalender WIB, termasuk hari ini). */
+const TREND_DAYS = 14;
+
+interface TrendRow {
+  day: string;
+  bookings: number;
+  completed: number;
+  revenue: number;
+}
+
+/** Daftar tanggal WIB (YYYY-MM-DD) dari `days` hari lalu sampai hari ini. */
+function wibDaySeries(days: number, now = new Date()): string[] {
+  const today = todayWIB(now);
+  const base = new Date(`${today}T00:00:00.000Z`);
+  const out: string[] = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(base);
+    d.setUTCDate(d.getUTCDate() - i);
+    out.push(d.toISOString().slice(0, 10));
+  }
+  return out;
+}
+
+export async function GET(_request: NextRequest) {
   try {
+    const days = wibDaySeries(TREND_DAYS);
+    const trendStart = wibDayRange(days[0]).start;
+    const trendEnd = wibDayRange(days[days.length - 1]).end;
+    const monthStart = wibDayRange(`${todayWIB().slice(0, 7)}-01`).start;
+
     const [
       totalCustomers,
       totalVehicles,
       bookingsByStatusRaw,
-      completedBookings,
+      revenueRows,
+      bookingsThisMonth,
       topServicesRaw,
-      recentBookings
+      recentBookings,
+      trendRaw,
+      stockAlerts
     ] = await Promise.all([
       // Total Pelanggan
       prisma.profile.count({
@@ -28,13 +61,17 @@ export async function GET(request: NextRequest) {
         }
       }),
 
-      // Revenue dari booking selesai
-      prisma.booking.findMany({
-        where: { status: BookingStatus.selesai },
-        select: {
-          final_cost: true,
-          estimated_cost: true
-        }
+      // Revenue booking selesai: dijumlahkan di database (bukan ditarik semua ke memori),
+      // memakai final_cost bila ada dan estimated_cost bila belum diisi.
+      prisma.$queryRaw<Array<{ total: number }>>`
+        SELECT COALESCE(SUM(COALESCE(final_cost, estimated_cost)), 0)::float8 AS total
+        FROM bookings
+        WHERE status = 'selesai'
+      `,
+
+      // Booking yang dijadwalkan bulan berjalan (kalender WIB)
+      prisma.booking.count({
+        where: { scheduled_at: { gte: monthStart } }
       }),
 
       // Layanan terlaris (dihitung dari relasi BookingService)
@@ -66,7 +103,19 @@ export async function GET(request: NextRequest) {
             select: { plate_number: true, brand: true, model: true }
           }
         }
-      })
+      }),
+
+      // Bahan grafik tren: hanya kolom yang dipakai, dan hanya rentang 14 hari
+      // (kapasitas bengkel membatasi jumlahnya, jadi aman dikelompokkan di aplikasi).
+      // Pengelompokan per hari dilakukan dengan kalender WIB, bukan UTC, supaya jadwal
+      // pukul 00.00-06.59 WIB tidak jatuh ke hari sebelumnya.
+      prisma.booking.findMany({
+        where: { scheduled_at: { gte: trendStart, lte: trendEnd } },
+        select: { scheduled_at: true, status: true, final_cost: true, estimated_cost: true }
+      }),
+
+      // Peringatan stok: layanan yang barangnya habis/menipis dan perlu dinonaktifkan.
+      getStockAlerts()
     ]);
 
     // Format Booking per status
@@ -82,11 +131,23 @@ export async function GET(request: NextRequest) {
       statusCounts[item.status] = item._count.id;
     });
 
-    // Hitung total revenue
-    const totalRevenue = completedBookings.reduce((sum, b) => {
-      const val = b.final_cost ? Number(b.final_cost) : Number(b.estimated_cost);
-      return sum + val;
-    }, 0);
+    const totalRevenue = Number(revenueRows[0]?.total ?? 0);
+
+    // Hari tanpa booking tetap muncul sebagai nol, supaya garis tren tidak bolong.
+    const byDay = new Map<string, TrendRow>(days.map((day) => [day, { day, bookings: 0, completed: 0, revenue: 0 }]));
+    for (const b of trendRaw) {
+      const row = byDay.get(toWIBParts(b.scheduled_at).date);
+      if (!row) continue;
+      row.bookings += 1;
+      if (b.status === BookingStatus.selesai) {
+        row.completed += 1;
+        row.revenue += Number(b.final_cost ?? b.estimated_cost);
+      }
+    }
+    const trend: TrendRow[] = days.map((day) => byDay.get(day)!);
+
+    const trendRevenue = trend.reduce((sum, d) => sum + d.revenue, 0);
+    const trendBookings = trend.reduce((sum, d) => sum + d.bookings, 0);
 
     // Ambil detail nama layanan untuk top_services
     const serviceIds = topServicesRaw.map((ts) => ts.service_id);
@@ -110,9 +171,19 @@ export async function GET(request: NextRequest) {
         total_revenue: totalRevenue,
         total_customers: totalCustomers,
         total_vehicles: totalVehicles,
+        bookings_this_month: bookingsThisMonth,
         bookings_by_status: statusCounts,
         top_services: topServices,
-        recent_bookings: recentBookings
+        recent_bookings: recentBookings,
+        stock_alerts: stockAlerts,
+        trend: {
+          days: TREND_DAYS,
+          start: days[0],
+          end: days[days.length - 1],
+          total_revenue: trendRevenue,
+          total_bookings: trendBookings,
+          rows: trend
+        }
       },
       'Ringkasan dashboard admin berhasil diambil'
     );

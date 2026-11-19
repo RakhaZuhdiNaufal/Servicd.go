@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { computePromoDiscount, promoBlockReason } from '@servicego/shared';
 import { fetcher } from '@/lib/fetcher';
 import { useAuth } from '@/lib/auth-context';
 import { toast } from 'sonner';
@@ -93,8 +94,9 @@ export function useBookingForm() {
   const activeServicesList = services.filter((s) => selectedServices.includes(s.id));
   const totalCost = activeServicesList.reduce((sum, s) => sum + Number(s.price || 0), 0);
   const totalDuration = activeServicesList.reduce((sum, s) => sum + Number(s.duration_minutes || 0), 0);
-  // Rumus sama dengan server (promoDiscount di packages/shared): persen dari estimasi, dibulatkan ke rupiah.
-  const promoDiscount = appliedPromo ? Math.round((totalCost * appliedPromo.discount_percent) / 100) : 0;
+  // Rumus sama dengan server: computePromoDiscount di packages/shared, termasuk voucher
+  // bertipe nominal dan batas potongan maksimum.
+  const promoDiscount = appliedPromo ? computePromoDiscount(appliedPromo, totalCost) : 0;
   const finalCost = totalCost - promoDiscount;
 
   function applyPromo(code: string = promoInput) {
@@ -112,6 +114,14 @@ export function useBookingForm() {
     if (!promo) {
       setAppliedPromo(null);
       setPromoError('Kode promo tidak dikenal atau sudah tidak berlaku.');
+      return;
+    }
+    // Syarat voucher (kuota, masa berlaku, minimal belanja) dicek dengan aturan yang sama
+    // seperti server, supaya pelanggan tidak kaget saat booking ditolak di langkah akhir.
+    const blocked = promoBlockReason(promo, totalCost);
+    if (blocked) {
+      setAppliedPromo(null);
+      setPromoError(blocked);
       return;
     }
     setAppliedPromo(promo);

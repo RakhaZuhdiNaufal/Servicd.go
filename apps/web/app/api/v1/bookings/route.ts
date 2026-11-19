@@ -1,10 +1,11 @@
 import { NextRequest } from 'next/server';
 import { prisma, BookingStatus } from '@servicego/database';
-import { createBookingSchema, findActivePromo, promoDiscount } from '@servicego/shared';
+import { createBookingSchema, computePromoDiscount, promoBlockReason } from '@servicego/shared';
 import { apiSuccess, apiError, apiCatch, HttpError } from '@/lib/response';
 import { getAuthenticatedUser } from '@/lib/auth';
 import { OPERATING_SLOTS, toWIBParts, wibDayRange } from '@/lib/wib';
 import { bookingDuration, remainingCapacity } from '@/lib/capacity';
+import { toPromoDTO } from '@/lib/promo';
 
 export async function GET(request: NextRequest) {
   try {
@@ -89,17 +90,39 @@ export async function POST(request: NextRequest) {
       0
     );
 
-    // Kode promo (opsional): diskon persen dipotong dari estimasi biaya layanan.
+    // Kode promo (opsional): voucher diambil dari tabel `promos` yang dikelola admin.
     let promoNote: string | null = null;
     let estimatedCost = subtotal;
+    let appliedPromo: { id: string; code: string; discount: number } | null = null;
     if (promo_code && promo_code.trim()) {
-      const promo = findActivePromo(promo_code);
-      if (!promo) {
+      const row = await prisma.promo.findUnique({ where: { code: promo_code.trim().toUpperCase() } });
+      if (!row) {
         return apiError('Kode promo tidak dikenal atau sudah tidak berlaku', 422);
       }
-      const discount = promoDiscount(promo, subtotal);
+
+      const promo = toPromoDTO(row);
+      const blocked = promoBlockReason(promo, subtotal);
+      if (blocked) {
+        return apiError(blocked, 422);
+      }
+
+      // Batas pemakaian per pelanggan dihitung dari riwayat penukaran.
+      if (promo.per_customer_limit != null) {
+        const usedByCustomer = await prisma.promoRedemption.count({
+          where: { promo_id: row.id, customer_id: user.profileId }
+        });
+        if (usedByCustomer >= promo.per_customer_limit) {
+          return apiError(
+            `Kode ${promo.code} hanya bisa dipakai ${promo.per_customer_limit}x per pelanggan dan kamu sudah memakainya.`,
+            422
+          );
+        }
+      }
+
+      const discount = computePromoDiscount(promo, subtotal);
       estimatedCost = subtotal - discount;
-      promoNote = `Kode promo ${promo.code}: diskon ${promo.discount_percent}% (Rp ${discount.toLocaleString('id-ID')}) dari estimasi Rp ${subtotal.toLocaleString('id-ID')}`;
+      appliedPromo = { id: row.id, code: promo.code, discount };
+      promoNote = `Kode promo ${promo.code}: potongan Rp ${discount.toLocaleString('id-ID')} dari estimasi Rp ${subtotal.toLocaleString('id-ID')}`;
     }
 
     // 3. Tentukan cabang
@@ -186,6 +209,31 @@ export async function POST(request: NextRequest) {
           price_at_booking: s.price
         }))
       });
+
+      // Catat pemakaian voucher. Kuota dikurangi dengan update bersyarat: kalau pelanggan lain
+      // menghabiskan sisa kuota di detik yang sama, booking ini dibatalkan daripada kuota jebol.
+      if (appliedPromo) {
+        const { count } = await tx.promo.updateMany({
+          where: {
+            id: appliedPromo.id,
+            is_active: true,
+            OR: [{ quota: null }, { used_count: { lt: prisma.promo.fields.quota } }]
+          },
+          data: { used_count: { increment: 1 } }
+        });
+        if (count === 0) {
+          throw new HttpError('Kuota kode promo ini baru saja habis. Coba tanpa kode promo atau pakai kode lain.', 409);
+        }
+
+        await tx.promoRedemption.create({
+          data: {
+            promo_id: appliedPromo.id,
+            booking_id: newBooking.id,
+            customer_id: user.profileId,
+            discount_amount: appliedPromo.discount
+          }
+        });
+      }
 
       // Insert riwayat status awal
       await tx.bookingStatusHistory.create({

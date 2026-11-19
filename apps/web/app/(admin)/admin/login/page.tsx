@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { Eye, EyeOff, Wrench } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
 import { clsx } from 'clsx';
 import { supabase } from '@/lib/supabase-client';
 import { useAuth } from '@/lib/auth-context';
@@ -64,14 +64,9 @@ export default function AdminLoginPage() {
     <div className="flex min-h-dvh flex-col bg-slate-50 dark:bg-slate-950">
       <header className="flex h-16 items-center justify-between px-4 sm:px-6">
         <div className="flex items-center gap-2.5">
-          <span className="flex h-8 w-8 items-center justify-center rounded-chip bg-primary-600 text-white">
-            <Wrench className="h-4 w-4" aria-hidden />
-          </span>
-          <span className="flex items-baseline gap-1.5">
-            <span className="text-[16px] font-bold tracking-tight text-slate-900 dark:text-white">
-              Service<span className="text-primary-600 dark:text-primary-500">Go</span>
-            </span>
-            <span className="text-[13px] font-medium text-slate-600 dark:text-slate-400">Admin</span>
+          <img src="/logo-servicego-transparent.png" alt="ServiceGo" className="h-9 w-auto object-contain" />
+          <span className="border-l border-slate-200 pl-2.5 text-[13px] font-semibold text-slate-600 dark:border-slate-700 dark:text-slate-400">
+            Admin
           </span>
         </div>
         <ThemeToggle />
