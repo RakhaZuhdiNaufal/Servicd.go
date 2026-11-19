@@ -69,20 +69,22 @@ export function ErrorState({
     <div
       role="alert"
       className={clsx(
-        'flex flex-col sm:flex-row sm:items-center gap-3 rounded-ctl border border-red-200 bg-red-50 px-5 py-4 dark:border-red-900 dark:bg-red-950/40',
+        'flex flex-col gap-4 rounded-[20px] border border-slate-200 bg-white px-5 py-5 sm:flex-row sm:items-center dark:border-slate-800 dark:bg-slate-900',
         className
       )}
     >
-      <AlertTriangle className="h-5 w-5 shrink-0 text-red-600 dark:text-red-400" aria-hidden />
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-red-800 dark:text-red-200">{title}</p>
-        {message && <p className="text-sm text-red-700 dark:text-red-300 break-words">{message}</p>}
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-ctl bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400">
+        <AlertTriangle className="h-5 w-5" aria-hidden />
+      </span>
+      <div className="min-w-0 flex-1 space-y-0.5">
+        <p className="text-[15px] font-semibold text-slate-900 dark:text-white">{title}</p>
+        {message && <p className="break-words text-sm text-slate-600 dark:text-slate-400">{message}</p>}
       </div>
       {onRetry && (
         <button
           type="button"
           onClick={onRetry}
-          className="inline-flex min-h-[44px] items-center gap-1.5 self-start sm:self-auto rounded-ctl border border-red-300 bg-white px-4 text-sm font-semibold text-red-700 hover:bg-red-100 dark:border-red-800 dark:bg-transparent dark:text-red-200 dark:hover:bg-red-900/40 transition-colors"
+          className="inline-flex min-h-[44px] shrink-0 items-center gap-1.5 self-start rounded-ctl border border-slate-300 bg-white px-4 text-[15px] font-semibold text-slate-900 transition-colors hover:bg-slate-50 sm:self-auto dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:hover:bg-slate-800"
         >
           <RotateCw className="h-4 w-4" aria-hidden />
           Coba lagi

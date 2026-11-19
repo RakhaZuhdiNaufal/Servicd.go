@@ -33,6 +33,17 @@ export function apiCatch(error: unknown, fallback: string) {
   // request.json() pada body yang bukan JSON
   if (error instanceof SyntaxError) return apiError('Format body tidak valid', 400);
   const code = (error as { code?: string })?.code;
+  // Database tidak terjangkau (DNS/jaringan/pooler mati). Tanpa cabang ini pengguna cuma lihat
+  // pesan fallback seperti "Gagal mengambil data kendaraan" yang tidak menjelaskan apa pun.
+  if (
+    (error as Error)?.name === 'PrismaClientInitializationError' ||
+    code === 'P1001' ||
+    code === 'P1002' ||
+    code === 'P1017'
+  ) {
+    console.error(`[api] ${fallback}: database tidak terjangkau`, error);
+    return apiError('Server belum bisa menghubungi database. Cek koneksi internet, lalu coba lagi.', 503);
+  }
   if (code === 'P2002') return apiError('Data yang sama sudah ada.', 409);
   if (code === 'P2003') return apiError('Data ini masih dipakai data lain, jadi tidak bisa diubah atau dihapus.', 409);
   if (code === 'P2025') return apiError('Data tidak ditemukan.', 404);

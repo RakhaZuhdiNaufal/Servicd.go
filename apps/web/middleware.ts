@@ -11,6 +11,54 @@ const PUBLIC_API_ROUTES = [
 
 const AUTH_CONTEXT_HEADERS = ['x-auth-id', 'x-profile-id', 'x-user-role', 'x-user-email'];
 
+/**
+ * Cache hasil verifikasi token (30 detik).
+ *
+ * Tanpa ini setiap request API menempuh dua perjalanan ke Supabase (verifikasi token +
+ * ambil profil) sebelum route-nya jalan. Satu halaman memanggil 6 API sekaligus, jadi
+ * 12 perjalanan ke Tokyo hanya untuk auth — itu yang bikin tiap halaman menunggu lama.
+ *
+ * Risikonya: perubahan role baru terasa paling lama 30 detik. Entri juga tidak pernah
+ * dipakai melewati masa berlaku tokennya sendiri.
+ */
+const TTL_MS = 30_000;
+const authCache = new Map<string, { exp: number; auth: { id: string; email: string; profileId: string; role: string } }>();
+
+/** Waktu kedaluwarsa token (detik epoch) dari payload JWT; hanya untuk membatasi umur cache. */
+function tokenExp(token: string): number | null {
+  try {
+    const payload = token.split('.')[1];
+    if (!payload) return null;
+    const json = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+    const exp = JSON.parse(json)?.exp;
+    return typeof exp === 'number' ? exp * 1000 : null;
+  } catch {
+    return null;
+  }
+}
+
+function cacheAmbil(token: string) {
+  const hit = authCache.get(token);
+  if (!hit) return null;
+  if (Date.now() > hit.exp) {
+    authCache.delete(token);
+    return null;
+  }
+  return hit.auth;
+}
+
+function cacheSimpan(token: string, auth: { id: string; email: string; profileId: string; role: string }) {
+  // Jangan pernah berlaku lebih lama dari tokennya sendiri.
+  const batas = tokenExp(token);
+  const exp = Math.min(Date.now() + TTL_MS, batas ?? Infinity);
+  if (exp <= Date.now()) return;
+  // Buang entri kedaluwarsa sesekali supaya Map tidak tumbuh terus.
+  if (authCache.size > 500) {
+    for (const [k, v] of authCache) if (Date.now() > v.exp) authCache.delete(k);
+  }
+  authCache.set(token, { exp, auth });
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -55,6 +103,22 @@ export async function middleware(request: NextRequest) {
       },
       { status: 401 }
     );
+  }
+
+  // Sudah diverifikasi baru-baru ini: lewati dua panggilan ke Supabase.
+  const cached = cacheAmbil(token);
+  if (cached) {
+    if (pathname.startsWith('/api/v1/admin') && cached.role !== 'admin') {
+      return NextResponse.json(
+        { success: false, data: null, message: 'Forbidden: Akses ditolak, memerlukan peran admin' },
+        { status: 403 }
+      );
+    }
+    requestHeaders.set('x-auth-id', cached.id);
+    requestHeaders.set('x-profile-id', cached.profileId);
+    requestHeaders.set('x-user-role', cached.role);
+    requestHeaders.set('x-user-email', cached.email);
+    return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
   try {
@@ -122,6 +186,11 @@ export async function middleware(request: NextRequest) {
           { status: 403 }
         );
       }
+    }
+
+    // Hanya hasil lookup yang berhasil yang disimpan; kalau gagal, request berikutnya coba lagi.
+    if (!lookupFailed) {
+      cacheSimpan(token, { id: user.id, email: user.email || '', profileId, role });
     }
 
     // Lampirkan context terverifikasi ke headers request

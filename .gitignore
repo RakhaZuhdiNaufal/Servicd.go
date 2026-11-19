@@ -39,6 +39,13 @@ AGENTS.md
 .clinerules/
 .cursor/
 .windsurf/
+.claude/
+
+# Query engine Prisma yang disalin manual agar Next menemukannya (hasil generate, bukan kode)
+apps/web/.prisma/
+
+# Installer / binary yang kebetulan tersimpan di folder project
+*.exe
 
 # Database SQL DDL & Dump
 supabase_schema.sql
