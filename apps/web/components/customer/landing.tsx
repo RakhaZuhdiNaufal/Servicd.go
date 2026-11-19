@@ -11,7 +11,7 @@ import { formatDuration, formatRp, shortBranchName } from '@/lib/format';
 import { WorkshopHero } from '@/components/illustrations/workshop';
 import { Plate } from '@/components/customer/plate';
 import { EmptyState, ErrorState, SkeletonBlock } from '@/components/customer/states';
-import { SERVICE_CATEGORIES, getServiceCategory, type ServiceCategoryId } from '@/components/customer/booking/service-selector';
+import { CATEGORY_ICONS, SERVICE_CATEGORIES, getServiceCategory, type ServiceCategoryId } from '@/components/customer/booking/service-selector';
 import { INDONESIA_DOTS } from '@/components/customer/indonesia-dots';
 
 /*
@@ -306,17 +306,6 @@ function CategoryStrip() {
 
 
 // ---------------------------------------------------------------------------
-
-/** Ikon per kategori untuk tile gambar di kartu layanan (dipakai juga sebagai "gambar" kategori). */
-const CATEGORY_ICONS: Record<ServiceCategoryId, typeof Cog> = {
-  mesin: Cog,
-  oli: Droplets,
-  rem: Disc3,
-  kelistrikan: Zap,
-  ac: Snowflake,
-  'kaca-film': Sparkles,
-  'kaki-kaki': Car
-};
 
 function PriceSection() {
   const { data, isLoading, isError, error, refetch } = useQuery<Service[]>({

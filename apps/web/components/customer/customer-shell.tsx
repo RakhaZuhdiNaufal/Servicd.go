@@ -4,20 +4,32 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Home, Clock, Newspaper, User, Wrench, Headphones, CalendarPlus, LogOut, MapPin, Phone } from 'lucide-react';
+import { Home, Clock, Newspaper, User, Wrench, Headphones, CalendarPlus, MapPin, Phone, PlayCircle, Settings } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useAuth } from '@/lib/auth-context';
-import { supabase } from '@/lib/supabase-client';
 import { fetcher } from '@/lib/fetcher';
 import { shortBranchName } from '@/lib/format';
 import { OPERATING_SLOTS } from '@/lib/wib';
-import { ThemeToggle } from '@/components/theme-toggle';
 import { useCustomerSupportChat } from '@/lib/support-chat';
 import { SupportChatDrawer } from './support-chat-drawer';
 import { NotificationPopover } from './notification-popover';
 
-// "Booking" tidak masuk daftar ini karena sudah jadi tombol aksi utama (aksen oranye) di header.
+/**
+ * Navbar atas (desktop). Sengaja pendek: Notifikasi, Setting, dan CS sudah punya
+ * ikon sendiri di pojok kanan, dan Profil dijangkau dari halaman Setting.
+ */
 const NAV = [
+  { href: '/', label: 'Beranda', icon: Home },
+  { href: '/booking/new', label: 'Booking', icon: CalendarPlus },
+  { href: '/bookings', label: 'Riwayat', icon: Clock },
+  { href: '/tutorial', label: 'Tutorial', icon: PlayCircle }
+];
+
+/**
+ * Tab bar bawah (HP). Daftarnya terpisah dari NAV karena di layar kecil justru
+ * Notifikasi & Profil yang paling sering dibuka, dan slotnya cuma empat.
+ */
+const TAB_HP = [
   { href: '/', label: 'Beranda', icon: Home },
   { href: '/bookings', label: 'Riwayat', icon: Clock },
   { href: '/notifications', label: 'Notifikasi', icon: Newspaper },
@@ -157,11 +169,6 @@ export function CustomerShell({ children }: { children: React.ReactNode }) {
     return <SplashScreen label="Mengarahkan ke halaman masuk..." />;
   }
 
-  async function handleSignOut() {
-    await supabase.auth.signOut();
-    router.replace('/login');
-  }
-
   const onBookingFlow = pathname.startsWith('/booking/');
   // Header transparan + konten full-bleed hanya untuk landing tamu; dashboard pelanggan
   // butuh header biasa, kalau tidak judulnya tertimpa logo.
@@ -188,7 +195,10 @@ export function CustomerShell({ children }: { children: React.ReactNode }) {
           <div className="flex items-center gap-8">
             <Wordmark isTransparent={isHome} />
             {session && (
-              <nav aria-label="Navigasi utama" className="hidden md:flex items-center gap-1">
+              <nav
+                aria-label="Navigasi utama"
+                className="hidden md:flex items-center gap-1 absolute left-1/2 -translate-x-1/2"
+              >
                 {NAV.map(({ href, label }) => {
                   const active = isActive(pathname, href);
                   return (
@@ -242,7 +252,6 @@ export function CustomerShell({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="flex items-center gap-1 sm:gap-2">
-            <ThemeToggle className={isHome ? '!text-white hover:!bg-white/15' : ''} />
             <button
               type="button"
               onClick={() => setIsSupportOpen(true)}
@@ -267,6 +276,24 @@ export function CustomerShell({ children }: { children: React.ReactNode }) {
               )}
             </button>
             {session && <NotificationPopover />}
+            {session && (
+              <Link
+                href="/settings"
+                aria-label="Pengaturan"
+                aria-current={isActive(pathname, '/settings') ? 'page' : undefined}
+                title="Pengaturan"
+                className={clsx(
+                  'inline-flex h-11 w-11 items-center justify-center rounded-ctl transition-colors',
+                  isHome
+                    ? 'text-white hover:bg-white/15'
+                    : isActive(pathname, '/settings')
+                      ? 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-white'
+                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'
+                )}
+              >
+                <Settings className="h-5 w-5" aria-hidden />
+              </Link>
+            )}
 
             {!session && !loading && (
               <Link
@@ -282,32 +309,6 @@ export function CustomerShell({ children }: { children: React.ReactNode }) {
               </Link>
             )}
 
-            {!onBookingFlow && (
-              <Link
-                href="/booking/new"
-                className="hidden sm:inline-flex h-11 items-center gap-2 rounded-ctl bg-accent-500 px-4 text-[15px] font-semibold text-slate-950 hover:bg-accent-600 transition-colors shadow-lg"
-              >
-                <CalendarPlus className="h-4 w-4" aria-hidden />
-                Booking servis
-              </Link>
-            )}
-
-            {session && (
-              <button
-                type="button"
-                onClick={handleSignOut}
-                aria-label="Keluar dari akun"
-                title="Keluar"
-                className={clsx(
-                  'hidden md:inline-flex h-11 w-11 items-center justify-center rounded-ctl transition-colors',
-                  isHome
-                    ? 'text-white hover:bg-white/15'
-                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'
-                )}
-              >
-                <LogOut className="h-5 w-5" aria-hidden />
-              </button>
-            )}
           </div>
         </div>
       </header>
@@ -355,7 +356,9 @@ export function CustomerShell({ children }: { children: React.ReactNode }) {
                   ? [
                       { href: '/bookings', label: 'Riwayat booking' },
                       { href: '/notifications', label: 'Notifikasi' },
-                      { href: '/profile', label: 'Profil saya' }
+                      { href: '/tutorial', label: 'Tutorial perawatan' },
+                      { href: '/profile', label: 'Profil saya' },
+                      { href: '/settings', label: 'Pengaturan' }
                     ]
                   : [
                       { href: '/login', label: 'Masuk' },
@@ -439,7 +442,7 @@ export function CustomerShell({ children }: { children: React.ReactNode }) {
         className="md:hidden sticky bottom-0 z-40 border-t border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900"
       >
         <div className="mx-auto grid h-16 max-w-lg grid-cols-5">
-          {[NAV[0], NAV[1]].map(({ href, label, icon: Icon }) => (
+          {[TAB_HP[0], TAB_HP[1]].map(({ href, label, icon: Icon }) => (
             <MobileNavItem key={href} href={href} label={label} Icon={Icon} active={isActive(pathname, href)} />
           ))}
           <Link
@@ -452,7 +455,7 @@ export function CustomerShell({ children }: { children: React.ReactNode }) {
             </span>
             Booking
           </Link>
-          {[NAV[2], NAV[3]].map(({ href, label, icon: Icon }) => (
+          {[TAB_HP[2], TAB_HP[3]].map(({ href, label, icon: Icon }) => (
             <MobileNavItem key={href} href={href} label={label} Icon={Icon} active={isActive(pathname, href)} />
           ))}
         </div>

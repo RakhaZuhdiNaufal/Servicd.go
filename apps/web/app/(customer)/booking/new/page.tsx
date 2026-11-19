@@ -1,7 +1,10 @@
 'use client';
 
-import { Suspense } from 'react';
+import { Suspense, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
+import { CalendarPlus } from 'lucide-react';
+import { clsx } from 'clsx';
 import {
   useBookingForm,
   BookingStepper,
@@ -19,6 +22,11 @@ import { SkeletonBlock } from '@/components/customer/states';
 function BookingNewPageContent() {
   const f = useBookingForm();
   const isGuest = !f.authLoading && !f.user;
+
+  // Kalau datang dari tombol "Booking" sebuah layanan/kendaraan, pilihannya sudah terisi
+  // dari query — langsung ke formulir, jangan paksa klik "Mulai booking" lagi.
+  const sudahTerisi = useSearchParams().toString().length > 0;
+  const [mulai, setMulai] = useState(sudahTerisi);
 
   const summaryProps = {
     activeVehicle: f.activeVehicle,
@@ -58,8 +66,9 @@ function BookingNewPageContent() {
               Booking servis
             </h1>
             <p className="text-[17px] leading-relaxed text-slate-600 dark:text-slate-400">
-              {f.steps.length === 3 ? 'Tiga' : 'Empat'} langkah singkat. Estimasi biaya terhitung langsung, dan pilihan bisa diubah kapan saja sebelum
-              konfirmasi.
+              {mulai
+                ? `${f.steps.length === 3 ? 'Tiga' : 'Empat'} langkah singkat. Estimasi biaya terhitung langsung, dan pilihan bisa diubah kapan saja sebelum konfirmasi.`
+                : 'Ini yang akan kamu isi. Mulai kapan saja, pilihanmu bisa diubah sebelum konfirmasi.'}
             </p>
           </div>
           <Link
@@ -69,10 +78,35 @@ function BookingNewPageContent() {
             Batal, ke Beranda
           </Link>
         </div>
-        <BookingStepper steps={f.steps} activeStep={f.activeStep} />
+        {mulai && <BookingStepper steps={f.steps} activeStep={f.activeStep} />}
       </div>
 
-      <div className="grid items-start gap-6 lg:grid-cols-12 lg:gap-8">
+      {!mulai && (
+        <section
+          aria-labelledby="mulai-title"
+          className="max-w-2xl overflow-hidden rounded-[20px] border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900"
+        >
+          <div className="space-y-5 p-6 sm:p-7">
+            <h2 id="mulai-title" className="text-[20px] font-bold tracking-[-0.01em] text-slate-900 dark:text-white">
+              Ringkasan booking
+            </h2>
+            {/* Kartu kosong: isinya sama dengan ringkasan di formulir, tinggal menunggu diisi. */}
+            <SummaryDetails {...summaryProps} />
+          </div>
+          <div className="border-t border-slate-200 p-6 dark:border-slate-800 sm:p-7">
+            <button
+              type="button"
+              onClick={() => setMulai(true)}
+              className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-ctl bg-accent-500 px-5 text-[15px] font-semibold text-slate-950 transition-colors hover:bg-accent-600 sm:w-auto"
+            >
+              <CalendarPlus className="h-5 w-5" aria-hidden />
+              Mulai booking
+            </button>
+          </div>
+        </section>
+      )}
+
+      <div className={clsx('grid items-start gap-6 lg:grid-cols-12 lg:gap-8', !mulai && 'hidden')}>
         <div className="min-w-0 space-y-6 lg:col-span-8">
           <VehicleSelector
             isGuest={isGuest}
@@ -150,7 +184,7 @@ function BookingNewPageContent() {
         </div>
       </div>
 
-      <MobileBookingBar {...summaryProps} />
+      {mulai && <MobileBookingBar {...summaryProps} />}
     </div>
   );
 }

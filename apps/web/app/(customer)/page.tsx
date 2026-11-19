@@ -14,10 +14,10 @@ import { Plate } from '@/components/customer/plate';
 import { EmptyState, ErrorState, SkeletonBlock } from '@/components/customer/states';
 import { StatusBadge } from '@/components/status-badge';
 import { GuestLanding } from '@/components/customer/landing';
-import { btnAccent, btnPrimary, btnSecondary, card, h1, h2, lead, linkText, pageStack } from '@/components/customer/ui';
-import { CarShowcase } from '@/components/customer/car-showcase';
+import { btnAccent, btnPrimary, btnSecondary, card, h2, lead, linkText, pageStack } from '@/components/customer/ui';
 import { WorkshopFront } from '@/components/illustrations/workshop';
 import {
+  CATEGORY_ICONS,
   SERVICE_CATEGORIES,
   getServiceCategory,
   type ServiceCategoryId
@@ -62,10 +62,6 @@ interface Booking {
   vehicle: { id?: string; plate_number: string; brand: string; model: string } | null;
   booking_services: Array<{ service: { id?: string; name: string } }>;
   branch?: { id?: string; name: string; address?: string; phone?: string } | null;
-}
-
-interface ProfileResponse {
-  profile: { full_name: string };
 }
 
 const longDate = (iso: string) =>
@@ -117,49 +113,21 @@ function GuestHome() {
 function MemberHome() {
   const { user } = useAuth();
 
-  const profileQuery = useQuery<ProfileResponse>({
-    queryKey: ['profile'],
-    queryFn: () => fetcher('/profile')
-  });
-
   const bookingsQuery = useQuery<Booking[]>({
     queryKey: ['bookings'],
     queryFn: () => fetcher('/bookings'),
     enabled: !!user
   });
 
-  const fullName: string =
-    profileQuery.data?.profile?.full_name ||
-    (user?.user_metadata?.full_name as string | undefined) ||
-    user?.email?.split('@')[0] ||
-    '';
-  const firstName = fullName.trim().split(/\s+/)[0];
-
   const active = (bookingsQuery.data ?? [])
     .filter((b) => b.status === 'menunggu' || b.status === 'dikonfirmasi' || b.status === 'diproses')
     .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime());
 
-  let subline = 'Ringkasan booking dan kendaraan kamu.';
-  if (bookingsQuery.isSuccess) {
-    subline =
-      active.length === 0
-        ? 'Belum ada booking yang berjalan. Kendaraan dan servis terakhir kamu ada di bawah.'
-        : active[0].status === 'diproses'
-          ? `Kendaraan kamu sedang dikerjakan di ${active[0].branch?.name ?? 'bengkel ServiceGo'}.`
-          : `Booking berikutnya ${longDate(active[0].scheduled_at)}, pukul ${wibTime(active[0].scheduled_at)}.`;
-  }
-
   return (
     <div className={pageStack}>
-      <section aria-labelledby="sapa-title" className="space-y-6 pt-2 sm:pt-4">
-        <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
-          <div className="max-w-2xl space-y-2">
-            <h1 id="sapa-title" className={h1}>
-              {firstName ? `Halo, ${firstName}` : 'Halo'}
-            </h1>
-            <p className={lead}>{subline}</p>
-          </div>
-          <Link href="/booking/new" className={clsx(btnAccent, 'shrink-0')}>
+      <section aria-label="Booking aktif" className="space-y-6 pt-2 sm:pt-4">
+        <div className="flex sm:justify-end">
+          <Link href="/booking/new" className={clsx(btnAccent, 'w-full shrink-0 sm:w-auto')}>
             <CalendarPlus className="h-5 w-5" aria-hidden />
             Booking servis baru
           </Link>
@@ -169,7 +137,6 @@ function MemberHome() {
       </section>
 
       <VehiclesSection bookings={bookingsQuery.data} />
-      <CarShowcase />
       <ServicesSection />
       <PromosSection />
     </div>
@@ -513,12 +480,9 @@ function ServicesSection() {
     return map;
   }, [services]);
   const cats = SERVICE_CATEGORIES.filter((c) => grouped.has(c.id));
-  const [picked, setPicked] = useState<ServiceCategoryId | null>(null);
-  const activeCat = picked && grouped.has(picked) ? picked : cats[0]?.id ?? null;
-  const list = activeCat ? grouped.get(activeCat) ?? [] : [];
 
   return (
-    <section aria-labelledby="layanan-title" className="space-y-6">
+    <section aria-labelledby="layanan-title" className="space-y-8">
       <div className="max-w-2xl space-y-2">
         <h2 id="layanan-title" className={h2}>
           Layanan dan harga
@@ -550,68 +514,54 @@ function ServicesSection() {
         />
       )}
 
-      {cats.length > 0 && (
-        <>
-          {cats.length > 1 && (
-            <div role="tablist" aria-label="Kategori layanan" className="flex flex-wrap gap-2">
-              {cats.map((c) => {
-                const on = c.id === activeCat;
-                return (
-                  <button
-                    key={c.id}
-                    type="button"
-                    role="tab"
-                    aria-selected={on}
-                    onClick={() => setPicked(c.id)}
-                    className={clsx(
-                      'min-h-[44px] rounded-chip border px-4 text-[15px] font-semibold transition-colors',
-                      on
-                        ? 'border-slate-900 bg-slate-900 text-white dark:border-white dark:bg-white dark:text-slate-900'
-                        : 'border-slate-300 bg-white text-slate-900 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:hover:bg-slate-800'
-                    )}
+      {/* Dikelompokkan per kategori: tiap kelompok punya judulnya sendiri, jadi baris
+          terakhir yang isinya kurang dari tiga kartu tetap terbaca rapi. */}
+      {cats.map((c) => {
+        const Icon = CATEGORY_ICONS[c.id];
+        return (
+          <div key={c.id} className="space-y-4">
+            <h3 className="flex items-center gap-2 border-b border-slate-200 pb-3 text-[17px] font-semibold text-slate-900 dark:border-slate-800 dark:text-white">
+              <Icon className="h-[18px] w-[18px] text-accent-600 dark:text-accent-500" aria-hidden />
+              {c.label}
+            </h3>
+            <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {(grouped.get(c.id) ?? []).map((s) => (
+                <li key={s.id} className={clsx(card, 'group flex h-full flex-col overflow-hidden')}>
+                  {/* "Foto" layanan: blok gelap + ikon kategori, sama seperti kartu di landing. */}
+                  <span
+                    aria-hidden
+                    className="flex h-44 w-full items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-700 text-accent-500"
                   >
-                    {c.label}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-          <ul role="tabpanel" className="grid gap-3 md:grid-cols-2">
-            {list.map((s) => (
-              <li
-                key={s.id}
-                className={clsx(card, 'flex h-full flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between')}
-              >
-                <div className="min-w-0">
-                  <Link
-                    href={`/services/${s.id}`}
-                    className="text-[16px] font-semibold text-slate-900 underline-offset-4 hover:underline dark:text-white"
-                  >
-                    {s.name}
-                  </Link>
-                  {s.description && (
-                    <p className="mt-1 line-clamp-2 text-sm text-slate-600 dark:text-slate-400">{s.description}</p>
-                  )}
-                  <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-slate-600 dark:text-slate-400">
-                    <span className="text-[15px] font-semibold text-slate-900 dark:text-white">{formatRp(s.price)}</span>
-                    <span className="inline-flex items-center gap-1.5">
+                    <Icon className="h-14 w-14 transition-transform duration-300 group-hover:scale-110" strokeWidth={1} />
+                  </span>
+                  <div className="flex flex-1 flex-col p-5">
+                    <Link
+                      href={`/services/${s.id}`}
+                      className="leading-snug text-slate-900 underline-offset-4 hover:underline dark:text-white"
+                    >
+                      {s.name}
+                    </Link>
+                    <p className="mt-1 inline-flex items-center gap-1.5 text-[13px] text-slate-600 dark:text-slate-400">
                       <Clock className="h-3.5 w-3.5" aria-hidden />
                       {formatDuration(s.duration_minutes)}
-                    </span>
-                  </p>
-                </div>
-                <Link
-                  href={`/booking/new?service_id=${s.id}`}
-                  aria-label={`Booking ${s.name}`}
-                  className={clsx(btnSecondary, 'shrink-0')}
-                >
-                  Booking
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
+                    </p>
+                    <div className="mt-4 flex items-center justify-between gap-3">
+                      <span className="text-[15px] text-slate-600 dark:text-slate-400">{formatRp(s.price)}</span>
+                      <Link
+                        href={`/booking/new?service_id=${s.id}`}
+                        aria-label={`Booking ${s.name}`}
+                        className={clsx(btnSecondary, 'shrink-0')}
+                      >
+                        Booking
+                      </Link>
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        );
+      })}
     </section>
   );
 }

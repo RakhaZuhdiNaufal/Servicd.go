@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { clsx } from 'clsx';
 import { toast } from 'sonner';
-import { CalendarDays, Check, ChevronLeft, Loader2, MapPin, Phone, Star, UserRound } from 'lucide-react';
+import { CalendarDays, Check, ChevronLeft, Loader2, MapPin, Phone, Receipt, Star, UserRound } from 'lucide-react';
 import { fetcher } from '@/lib/fetcher';
 import { supabase } from '@/lib/supabase-client';
 import { StatusBadge } from '@/components/status-badge';
@@ -13,6 +13,14 @@ import { Plate } from '@/components/customer/plate';
 import { ErrorState, SkeletonBlock } from '@/components/customer/states';
 import { bookingCode, formatDate, formatRp, formatTime } from '@/lib/format';
 import { WorkshopFront } from '@/components/illustrations/workshop';
+import { btnSecondary } from '@/components/customer/ui';
+import {
+  PAYMENT_METHOD,
+  PAYMENT_STATUS,
+  PAYMENT_TYPE,
+  sudahDibayar,
+  type Payment
+} from '@/components/customer/payment';
 
 type BookingStatus = 'menunggu' | 'dikonfirmasi' | 'diproses' | 'selesai' | 'dibatalkan';
 
@@ -31,6 +39,7 @@ interface Booking {
   status_history: Array<{ status: BookingStatus; changed_at: string; note: string | null }>;
   photos?: Array<{ id: string; photo_url: string; stage: 'checkin' | 'checkout'; caption: string | null }>;
   review: { rating: number; comment: string | null } | null;
+  payments?: Payment[];
 }
 
 const PROGRESS: Array<{ status: BookingStatus; label: string }> = [
@@ -123,6 +132,80 @@ function Card({ title, children, id, className }: { title: string; children: Rea
       </h2>
       {children}
     </section>
+  );
+}
+
+/**
+ * Pembayaran booking. Kalau belum ada catatan pembayaran, kartunya cuma memberi tahu
+ * cara bayar — struk baru muncul setelah kasir mencatat pembayaran.
+ */
+function PaymentCard({ bookingId, payments, total }: { bookingId: string; payments: Payment[]; total: number }) {
+  const adaLunas = payments.some((p) => p.status === 'paid');
+  const dibayar = sudahDibayar(payments);
+  const sisa = Math.max(0, total - dibayar);
+
+  if (payments.length === 0) {
+    return (
+      <Card title="Pembayaran">
+        <p className="text-sm text-slate-600 dark:text-slate-400">
+          Belum ada pembayaran yang tercatat. Bayar di kasir bengkel saat servis selesai, lalu struknya muncul di sini.
+        </p>
+      </Card>
+    );
+  }
+
+  return (
+    <Card title="Pembayaran">
+      <ul className="divide-y divide-slate-200 dark:divide-slate-800">
+        {payments.map((p) => (
+          <li key={p.id} className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1 py-3 first:pt-0">
+            <div className="min-w-0">
+              <p className="text-[15px] font-semibold text-slate-900 dark:text-white">{PAYMENT_TYPE[p.payment_type]}</p>
+              <p className="text-[13px] text-slate-600 dark:text-slate-400">
+                {PAYMENT_METHOD[p.method]}
+                {p.paid_at ? ` · ${formatDate(p.paid_at)}` : ''}
+                {p.midtrans_ref ? ` · Ref ${p.midtrans_ref}` : ''}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-[15px] font-semibold text-slate-900 dark:text-white">{formatRp(p.amount)}</p>
+              <p
+                className={clsx(
+                  'text-[13px]',
+                  p.status === 'paid'
+                    ? 'text-emerald-700 dark:text-emerald-300'
+                    : p.status === 'failed'
+                      ? 'text-red-700 dark:text-red-300'
+                      : 'text-slate-600 dark:text-slate-400'
+                )}
+              >
+                {PAYMENT_STATUS[p.status]}
+              </p>
+            </div>
+          </li>
+        ))}
+      </ul>
+
+      <div className="mt-4 space-y-1.5 border-t border-slate-200 pt-4 dark:border-slate-800">
+        <div className="flex justify-between text-sm text-slate-600 dark:text-slate-400">
+          <span>Sudah dibayar</span>
+          <span>{formatRp(dibayar)}</span>
+        </div>
+        <div className="flex items-baseline justify-between gap-3">
+          <span className="font-semibold text-slate-900 dark:text-white">{sisa > 0 ? 'Sisa tagihan' : 'Status'}</span>
+          <span className="text-[20px] font-bold text-slate-900 dark:text-white">
+            {sisa > 0 ? formatRp(sisa) : 'Lunas'}
+          </span>
+        </div>
+      </div>
+
+      {adaLunas && (
+        <Link href={`/bookings/${bookingId}/struk`} className={clsx(btnSecondary, 'mt-5 w-full sm:w-auto')}>
+          <Receipt className="h-4 w-4" aria-hidden />
+          Lihat struk pembayaran
+        </Link>
+      )}
+    </Card>
   );
 }
 
@@ -435,6 +518,8 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
               </div>
             )}
           </Card>
+
+          {!cancelled && <PaymentCard bookingId={booking.id} payments={booking.payments ?? []} total={Number(total)} />}
 
           {!cancelled && (
             <Card title="Foto kondisi kendaraan">

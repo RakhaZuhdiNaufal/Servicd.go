@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Clock, Wrench } from 'lucide-react';
+import { Car, Clock, Cog, Disc3, Droplets, Snowflake, Sparkles, Wrench, Zap } from 'lucide-react';
 import { clsx } from 'clsx';
 import { formatDuration, formatRp } from '@/lib/format';
 import { EmptyState, ErrorState } from '@/components/customer/states';
@@ -21,6 +21,17 @@ export const SERVICE_CATEGORIES = [
 ] as const;
 
 export type ServiceCategoryId = (typeof SERVICE_CATEGORIES)[number]['id'];
+
+/** Ikon per kategori, dipakai sebagai "gambar" di kartu layanan (landing & dashboard). */
+export const CATEGORY_ICONS: Record<ServiceCategoryId, typeof Cog> = {
+  mesin: Cog,
+  oli: Droplets,
+  rem: Disc3,
+  kelistrikan: Zap,
+  ac: Snowflake,
+  'kaca-film': Sparkles,
+  'kaki-kaki': Car
+};
 
 export function getServiceCategory(name: string, description?: string | null): ServiceCategoryId {
   const text = ` ${name} ${description || ''} `.toLowerCase();
