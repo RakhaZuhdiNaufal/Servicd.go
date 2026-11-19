@@ -25,7 +25,9 @@ export const metadata: Metadata = {
 };
 
 // Pasang class tema sebelum halaman tampil supaya tidak berkedip saat mode gelap.
-const themeScript = `(function(){try{var t=localStorage.getItem('sg-theme');var d=t?t==='dark':window.matchMedia('(prefers-color-scheme: dark)').matches;if(d)document.documentElement.classList.add('dark');}catch(e){}})();`;
+// Default terang: mode gelap hanya aktif kalau pengguna menekan tombolnya sendiri,
+// jadi tampilannya tidak berubah mengikuti setelan gelap Windows.
+const themeScript = `(function(){try{if(localStorage.getItem('sg-theme')==='dark')document.documentElement.classList.add('dark');}catch(e){}})();`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

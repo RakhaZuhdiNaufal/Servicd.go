@@ -770,14 +770,19 @@ function LocationSection({
       {/* Peta titik-titik dari data geografis asli; posisi penanda ikut data cabang dari API. */}
       {query.isLoading && <SkeletonBlock className="mt-10 h-[300px] w-full" />}
       {!query.isLoading && main && (
-        <div className="mt-8 flex flex-col lg:flex-row lg:items-center">
-          {/* Peta melebar penuh; menyusut sendiri saat kolom kartu di sebelahnya terbuka. */}
-          <div className="w-full min-w-0 lg:flex-1">
+        <div className="relative mt-8 flex flex-col lg:block">
+          {/* Lebar peta diberi transisi supaya menyusutnya mengalir, bukan melompat satu frame. */}
+          <div
+            className={clsx(
+              'w-full min-w-0 transition-[width] duration-500 ease-out motion-reduce:transition-none',
+              openCard && 'lg:w-[calc(100%-23rem)]'
+            )}
+          >
             <DottedIndonesiaMap branch={main} onPinClick={() => setOpenCard((v) => !v)} />
           </div>
-          {/* Tidak dirender saat tertutup: kartu selebar 22rem akan meluber keluar layar kalau hanya disembunyikan. */}
+          {/* Melayang di atas layout (lg) supaya kemunculannya tidak menggeser peta secara mendadak. */}
           {openCard && (
-            <div className="muncul-halus mt-8 w-full shrink-0 lg:mt-0 lg:w-[22rem] lg:pl-8">
+            <div className="muncul-halus mt-8 w-full lg:absolute lg:right-0 lg:top-1/2 lg:mt-0 lg:w-80 lg:-translate-y-1/2">
               <BranchCard branch={main} />
             </div>
           )}
