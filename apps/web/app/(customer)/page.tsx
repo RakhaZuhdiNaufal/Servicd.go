@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { CalendarPlus, Car, ClipboardList, Clock, MapPin, Phone, RotateCcw, Tag, Wrench } from 'lucide-react';
 import { clsx } from 'clsx';
+import { promoSummary, type PromoDTO } from '@servicego/shared';
 import { fetcher } from '@/lib/fetcher';
 import { useAuth } from '@/lib/auth-context';
 import { toWIBParts } from '@/lib/wib';
@@ -46,15 +47,8 @@ interface Service {
   is_active: boolean;
 }
 
-interface Promo {
-  id: string;
-  code: string;
-  title: string;
-  description: string;
-  discount_percent: number;
-  valid_until: string;
-  is_active: boolean;
-}
+/** Voucher dari GET /api/v1/promos (tabel `promos`, aturan potongan di packages/shared). */
+type Promo = PromoDTO;
 
 type BookingStatus = 'menunggu' | 'dikonfirmasi' | 'diproses' | 'selesai' | 'dibatalkan';
 
@@ -670,7 +664,7 @@ function PromosSection() {
                   {p.code}
                 </span>
                 <span className="text-[24px] font-bold text-accent-600 dark:text-accent-500">
-                  {p.discount_percent}%
+                  {p.discount_type === 'nominal' ? formatRp(p.discount_value) : `${p.discount_percent}%`}
                 </span>
               </div>
               <div className="space-y-1">
@@ -679,13 +673,14 @@ function PromosSection() {
               </div>
 
               <div className="mt-auto space-y-3 border-t border-slate-200 pt-4 dark:border-slate-800">
-                {/* Aturan yang benar-benar diterapkan server (promoDiscount): persen dari estimasi layanan pilihan. */}
+                {/* Aturan yang benar-benar diterapkan server (computePromoDiscount di packages/shared). */}
                 <p className="text-sm font-semibold text-slate-900 dark:text-white">
-                  Potongan {p.discount_percent}% dari estimasi layanan yang kamu pilih saat booking.
+                  {promoSummary(p)} dari estimasi layanan yang kamu pilih saat booking.
+                  {p.min_spend ? ` Minimal belanja ${formatRp(p.min_spend)}.` : ''}
                 </p>
                 <p className="inline-flex items-center gap-1.5 text-[13px] text-slate-600 dark:text-slate-400">
                   <Tag className="h-3.5 w-3.5" aria-hidden />
-                  Berlaku sampai {fullDate(p.valid_until)}
+                  {p.valid_until ? `Berlaku sampai ${fullDate(p.valid_until)}` : 'Tanpa batas waktu'}
                 </p>
                 <Link href={`/booking/new?promo=${encodeURIComponent(p.code)}`} className={clsx(btnSecondary, 'w-full')}>
                   Booking pakai {p.code}

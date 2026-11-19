@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { CalendarPlus, Car, ChevronDown, Clock, Cog, Disc3, Droplets, LayoutGrid, MapPin, Search, Snowflake, Sparkles, Tag, Wrench, Zap } from 'lucide-react';
 import { clsx } from 'clsx';
+import type { PromoDTO } from '@servicego/shared';
 import { fetcher } from '@/lib/fetcher';
 import { formatDuration, formatRp, shortBranchName } from '@/lib/format';
 import { WorkshopHero } from '@/components/illustrations/workshop';
@@ -28,6 +29,21 @@ interface Service {
   is_active: boolean;
 }
 
+/** "Rp 75.000" -> "75rb" supaya muat di stub tiket voucher yang sempit. */
+function shortRp(value: number): string {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toLocaleString('id-ID', { maximumFractionDigits: 1 })}jt`;
+  if (value >= 1_000) return `${Math.round(value / 1_000)}rb`;
+  return String(value);
+}
+
+/** Label badge "penawaran terbaik": persen tertinggi, atau potongan rupiah terbesar. */
+function bestPromoLabel(promos: Promo[]): string {
+  const percents = promos.filter((p) => p.discount_type === 'persen').map((p) => p.discount_percent);
+  if (percents.length > 0) return `-${Math.max(...percents)}%`;
+  const nominals = promos.map((p) => p.discount_value);
+  return nominals.length > 0 ? `-${shortRp(Math.max(...nominals))}` : 'Promo';
+}
+
 interface Branch {
   id: string;
   name: string;
@@ -35,15 +51,8 @@ interface Branch {
   phone: string;
 }
 
-interface Promo {
-  id: string;
-  code: string;
-  title: string;
-  description: string;
-  discount_percent: number;
-  valid_until: string;
-  is_active: boolean;
-}
+/** Voucher dari GET /api/v1/promos (tabel `promos`). */
+type Promo = PromoDTO;
 
 const ctaAccent =
   'inline-flex min-h-[52px] items-center justify-center gap-2.5 rounded-ctl bg-accent-500 px-6 text-[17px] font-bold text-slate-950 hover:bg-accent-600 transition-colors';
@@ -820,8 +829,8 @@ function PromoSection() {
           compact ? 'w-12' : 'w-16'
         )}
       >
-        <span className={clsx('font-extrabold leading-none', compact ? 'text-base' : 'text-xl')}>
-          {p.discount_percent}%
+        <span className={clsx('font-extrabold leading-none', compact ? 'text-sm' : 'text-lg')}>
+          {p.discount_type === 'nominal' ? shortRp(p.discount_value) : `${p.discount_percent}%`}
         </span>
         <span className="mt-0.5 text-[9px] font-bold uppercase tracking-widest">OFF</span>
       </div>
@@ -892,7 +901,7 @@ function PromoSection() {
             />
             {/* Badge diskon melayang */}
             <div className="absolute -left-5 -top-9 z-10 rotate-[-8deg] rounded-xl bg-accent-500 px-4 py-2 text-lg font-extrabold text-slate-950 shadow-lg">
-              -{Math.max(...promos.map((p) => p.discount_percent))}%
+              {bestPromoLabel(promos)}
             </div>
             {/* Tablet */}
             <div className="relative -rotate-2 rounded-[28px] border-[10px] border-slate-900 bg-slate-50 p-5 shadow-2xl transition-transform duration-500 group-hover:rotate-0 dark:border-slate-700 dark:bg-slate-900">

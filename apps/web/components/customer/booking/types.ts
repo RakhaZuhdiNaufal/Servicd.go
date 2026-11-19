@@ -1,3 +1,5 @@
+import type { PromoDTO } from '@servicego/shared';
+
 // Bentuk data mengikuti respons API /api/v1 (sumber: Prisma schema).
 // Kolom Decimal (price) dikirim sebagai string oleh Prisma, jadi tipenya number | string.
 
@@ -43,15 +45,8 @@ export interface AvailableSlotsResponse {
   slots: TimeSlot[];
 }
 
-/** Paket promo dari GET /api/v1/promos (sumber: packages/shared/src/promos.ts). */
-export interface PromoInfo {
-  id: string;
-  code: string;
-  title: string;
-  discount_percent: number;
-  valid_until: string;
-  is_active: boolean;
-}
+/** Paket promo dari GET /api/v1/promos (tabel `promos`, aturannya di packages/shared/src/promos.ts). */
+export type PromoInfo = PromoDTO;
 
 export type BookingStepKey = 'kendaraan' | 'layanan' | 'bengkel' | 'jadwal';
 

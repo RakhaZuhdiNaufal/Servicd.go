@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { ArrowLeft, CheckCircle2, Inbox, Loader2, RotateCcw, RotateCw, Send } from 'lucide-react';
 import { clsx } from 'clsx';
 import { toast } from 'sonner';
@@ -43,9 +44,10 @@ function timeLabel(iso: string) {
   return isTodayWIB(iso) ? formatTimeWIB(iso) : formatDateWIB(iso, { day: 'numeric', month: 'short' });
 }
 
-export default function AdminSupportPage() {
+function AdminSupportContent() {
   const { session } = useAuth();
   const adminId = session?.user.id ?? null;
+  const searchParams = useSearchParams();
 
   const [conversations, setConversations] = useState<SupportConversation[]>([]);
   const [listLoading, setListLoading] = useState(true);
@@ -62,6 +64,8 @@ export default function AdminSupportPage() {
 
   const logRef = useRef<HTMLDivElement>(null);
   const selectedIdRef = useRef<string | null>(null);
+  const pendingPrefillRef = useRef<string | null>(null);
+  const handledPrefillKeyRef = useRef<string | null>(null);
   selectedIdRef.current = selectedId;
 
   const loadConversations = useCallback(async () => {
@@ -80,14 +84,12 @@ export default function AdminSupportPage() {
   const loadMessages = useCallback(async (conversationId: string) => {
     setRoomLoading(true);
     setRoomError(null);
-    // 500 pesan TERBARU (desc lalu dibalik), bukan 500 tertua.
     const { data, error } = await supabase
       .from('support_messages')
       .select('*')
       .eq('conversation_id', conversationId)
       .order('created_at', { ascending: false })
       .limit(500);
-    // Admin sudah pindah percakapan saat request ini masih jalan: buang hasilnya.
     if (selectedIdRef.current !== conversationId) return;
     if (error) setRoomError(friendlySupportError(error));
     else setMessages(((data ?? []) as SupportMessage[]).reverse());
@@ -105,10 +107,91 @@ export default function AdminSupportPage() {
     if (adminId) loadConversations();
   }, [adminId, loadConversations]);
 
+  // Tangkap parameter dari halaman Kendaraan (?customerEmail=...&prefill=...)
   useEffect(() => {
-    // Pindah percakapan: kosongkan isi & draf lama supaya balasan tidak terkirim ke pelanggan yang salah.
+    if (!adminId || listLoading) return;
+
+    const targetEmail = searchParams.get('customerEmail')?.trim() || '';
+    const targetAuthId = searchParams.get('authUserId')?.trim() || '';
+    const targetCustomerId = searchParams.get('customerId')?.trim() || '';
+    const targetName = searchParams.get('customerName')?.trim() || 'Pelanggan';
+    const prefillText = searchParams.get('prefill') || '';
+
+    if (!targetEmail && !targetAuthId && !targetCustomerId) return;
+
+    const key = `${targetEmail}|${targetAuthId}|${targetCustomerId}|${prefillText.slice(0, 32)}`;
+    if (handledPrefillKeyRef.current === key) return;
+    handledPrefillKeyRef.current = key;
+
+    async function openOrCreateTargetRoom() {
+      const existing = conversations.find((c) => {
+        const raw = c as Record<string, any>;
+        if (targetEmail && c.customer_email?.toLowerCase() === targetEmail.toLowerCase()) return true;
+        if (targetAuthId && raw.customer_id === targetAuthId) return true;
+        if (targetCustomerId && raw.customer_id === targetCustomerId) return true;
+        return false;
+      });
+
+      if (existing) {
+        setFilter('semua');
+        if (prefillText) {
+          pendingPrefillRef.current = prefillText;
+          setReply(prefillText);
+          toast.success(`Draf pesan pengingat untuk ${existing.customer_name || 'pelanggan'} sudah siap dikirim.`);
+        }
+        setSelectedId(existing.id);
+        return;
+      }
+
+      // Jika pemilik kendaraan belum pernah chat sebelumnya, buat percakapan baru
+      const customerUid = targetAuthId || targetCustomerId;
+      if (!customerUid) return;
+
+      const { data: created, error } = await supabase
+        .from('support_conversations')
+        .insert({
+          customer_id: customerUid,
+          customer_name: targetName,
+          customer_email: targetEmail || null,
+          status: 'active'
+        })
+        .select('*')
+        .single();
+
+      if (error || !created) {
+        if (prefillText) {
+          try {
+            await navigator.clipboard.writeText(prefillText);
+            toast.info('Pelanggan belum pernah memulai chat. Pesan pengingat sudah disalin ke clipboard.');
+          } catch {
+            toast.error('Pelanggan ini belum memiliki ruang chat aktif.');
+          }
+        }
+        return;
+      }
+
+      const newConv = created as SupportConversation;
+      setConversations((prev) => [newConv, ...prev.filter((c) => c.id !== newConv.id)]);
+      setFilter('semua');
+      if (prefillText) {
+        pendingPrefillRef.current = prefillText;
+        setReply(prefillText);
+        toast.success(`Draf pesan pengingat untuk ${targetName} sudah siap dikirim.`);
+      }
+      setSelectedId(newConv.id);
+    }
+
+    openOrCreateTargetRoom();
+  }, [adminId, listLoading, conversations, searchParams]);
+
+  useEffect(() => {
     setMessages([]);
-    setReply('');
+    if (pendingPrefillRef.current) {
+      setReply(pendingPrefillRef.current);
+      pendingPrefillRef.current = null;
+    } else {
+      setReply('');
+    }
     if (!selectedId) {
       setRoomLoading(false);
       return;
@@ -117,7 +200,6 @@ export default function AdminSupportPage() {
     markRead(selectedId);
   }, [selectedId, loadMessages, markRead]);
 
-  // Realtime: inbox dan isi percakapan yang sedang dibuka ikut berubah tanpa refresh.
   useEffect(() => {
     if (!adminId) return;
     const channel = supabase
@@ -406,7 +488,6 @@ export default function AdminSupportPage() {
                   <p className="text-center text-sm text-slate-600 dark:text-slate-400">Belum ada pesan di percakapan ini.</p>
                 )}
                 {messages.map((m) => {
-                  // Balasan otomatis (bot) tampil di sisi CS, dengan warna redup supaya beda dari balasan admin.
                   const bot = m.sender_type === 'bot';
                   const mine = m.sender_type === 'admin' || bot;
                   return (
@@ -452,7 +533,7 @@ export default function AdminSupportPage() {
                   </label>
                   <textarea
                     id="admin-reply"
-                    rows={2}
+                    rows={3}
                     value={reply}
                     maxLength={MAX_MESSAGE_LENGTH}
                     onChange={(e) => setReply(e.target.value)}
@@ -476,5 +557,19 @@ export default function AdminSupportPage() {
         </section>
       </div>
     </div>
+  );
+}
+
+export default function AdminSupportPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-[calc(100dvh-7.5rem)] items-center justify-center text-sm text-slate-500">
+          Memuat Live Support...
+        </div>
+      }
+    >
+      <AdminSupportContent />
+    </Suspense>
   );
 }

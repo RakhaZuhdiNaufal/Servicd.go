@@ -376,6 +376,143 @@ async function main() {
   });
   console.log(`Sample vehicles created`);
 
+  // 6. Stok barang bengkel + layanan yang memakainya.
+  // Satu barang sengaja dibuat habis dan satu menipis supaya peringatan di dashboard terlihat.
+  const inventoryData: Array<{
+    id: string;
+    name: string;
+    sku: string;
+    unit: string;
+    stock_qty: number;
+    min_qty: number;
+    price: number;
+    services: Array<{ service_id: string; qty_needed: number }>;
+  }> = [
+    {
+      id: '66666666-6666-6666-6666-666666666601',
+      name: 'Oli Mesin 10W-40 Semi Sintetik',
+      sku: 'OLI-1040',
+      unit: 'liter',
+      stock_qty: 24,
+      min_qty: 8,
+      price: 85000,
+      services: [
+        { service_id: '33333333-3333-3333-3333-333333333302', qty_needed: 4 },
+        { service_id: '33333333-3333-3333-3333-333333333301', qty_needed: 1 }
+      ]
+    },
+    {
+      id: '66666666-6666-6666-6666-666666666602',
+      name: 'Filter Oli Mesin',
+      sku: 'FLT-OLI',
+      unit: 'pcs',
+      stock_qty: 3,
+      min_qty: 5, // menipis
+      price: 45000,
+      services: [{ service_id: '33333333-3333-3333-3333-333333333302', qty_needed: 1 }]
+    },
+    {
+      id: '66666666-6666-6666-6666-666666666603',
+      name: 'Kampas Rem Depan',
+      sku: 'BRK-PAD-F',
+      unit: 'set',
+      stock_qty: 0, // habis
+      min_qty: 2,
+      price: 320000,
+      services: [{ service_id: '33333333-3333-3333-3333-333333333312', qty_needed: 1 }]
+    },
+    {
+      id: '66666666-6666-6666-6666-666666666604',
+      name: 'Minyak Rem DOT 4',
+      sku: 'BRK-DOT4',
+      unit: 'botol',
+      stock_qty: 12,
+      min_qty: 4,
+      price: 55000,
+      services: [{ service_id: '33333333-3333-3333-3333-333333333303', qty_needed: 1 }]
+    },
+    {
+      id: '66666666-6666-6666-6666-666666666605',
+      name: 'Filter Kabin AC (PM 2.5)',
+      sku: 'FLT-CBN',
+      unit: 'pcs',
+      stock_qty: 9,
+      min_qty: 3,
+      price: 95000,
+      services: [{ service_id: '33333333-3333-3333-3333-333333333318', qty_needed: 1 }]
+    }
+  ];
+
+  for (const item of inventoryData) {
+    const { services, ...data } = item;
+    await prisma.inventoryItem.upsert({
+      where: { id: item.id },
+      update: {
+        name: data.name,
+        sku: data.sku,
+        unit: data.unit,
+        min_qty: data.min_qty,
+        price: data.price
+      },
+      create: data
+    });
+    for (const link of services) {
+      await prisma.serviceItem.upsert({
+        where: { service_id_item_id: { service_id: link.service_id, item_id: item.id } },
+        update: { qty_needed: link.qty_needed },
+        create: { service_id: link.service_id, item_id: item.id, qty_needed: link.qty_needed }
+      });
+    }
+  }
+  console.log(`${inventoryData.length} Inventory items created/updated successfully`);
+
+  // 7. Voucher / kode promo. Sebelumnya daftar ini hardcoded di packages/shared/src/promos.ts;
+  // sekarang jadi baris database supaya bisa dikelola admin di /admin/voucher.
+  const promosData = [
+    {
+      id: '77777777-7777-7777-7777-777777777701',
+      code: 'HEMAT20',
+      title: 'Paket Servis Ringan & Tune Up',
+      badge: 'Paling Populer',
+      description: 'Pembersihan ruang bakar, cek 24 titik kendaraan, filter udara, dan uji emisi.',
+      discount_value: 20,
+      valid_until: new Date('2026-12-31T16:59:59.999Z') // 31 Des 2026 23.59 WIB
+    },
+    {
+      id: '77777777-7777-7777-7777-777777777702',
+      code: 'REMAMAN15',
+      title: 'Paket Servis Rem Komplit',
+      badge: 'Keselamatan Utama',
+      description: 'Pembersihan kampas 4 roda, pengurasan minyak rem baru, dan balancing roda depan.',
+      discount_value: 15,
+      valid_until: new Date('2026-12-31T16:59:59.999Z')
+    },
+    {
+      id: '77777777-7777-7777-7777-777777777703',
+      code: 'SUPERCOMBO25',
+      title: 'Paket Servis Komplit & AC Fresh',
+      badge: 'Hemat Maksimal',
+      description: 'Perawatan menyeluruh: servis berkala mesin + pembersihan sistem pendingin kabin.',
+      discount_value: 25,
+      valid_until: new Date('2026-12-31T16:59:59.999Z')
+    }
+  ];
+
+  for (const promo of promosData) {
+    await prisma.promo.upsert({
+      where: { id: promo.id },
+      update: {
+        title: promo.title,
+        badge: promo.badge,
+        description: promo.description,
+        discount_value: promo.discount_value,
+        valid_until: promo.valid_until
+      },
+      create: promo
+    });
+  }
+  console.log(`${promosData.length} Promos created/updated successfully`);
+
   console.log('Seed completed successfully!');
 }
 
