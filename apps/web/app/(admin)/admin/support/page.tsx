@@ -137,6 +137,7 @@ function AdminSupportContent() {
         if (prefillText) {
           pendingPrefillRef.current = prefillText;
           setReply(prefillText);
+          toast.success(`Draf pesan pengingat untuk ${existing.customer_name || 'pelanggan'} sudah siap dikirim.`);
         }
         setSelectedId(existing.id);
         return;
@@ -175,6 +176,7 @@ function AdminSupportContent() {
       if (prefillText) {
         pendingPrefillRef.current = prefillText;
         setReply(prefillText);
+        toast.success(`Draf pesan pengingat untuk ${targetName} sudah siap dikirim.`);
       }
       setSelectedId(newConv.id);
     }

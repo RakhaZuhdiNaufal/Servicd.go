@@ -317,7 +317,7 @@ export default function VehiclesPage() {
       prefill: customMessage
     });
 
-    router.push(`/support?${params.toString()}`);
+    router.push(`/admin/support?${params.toString()}`);
   }
 
   async function handleCopyMessage() {

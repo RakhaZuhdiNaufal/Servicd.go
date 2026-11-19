@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Pencil, Plus, Trash2, UserCog } from 'lucide-react';
@@ -177,6 +178,21 @@ export default function MechanicsPage() {
           </button>
         }
       />
+
+      <div className="flex border-b border-slate-200 dark:border-slate-800">
+        <Link
+          href="/admin/mechanics"
+          className="border-b-2 border-primary-600 px-4 py-2 text-sm font-bold text-primary-700 dark:border-primary-500 dark:text-primary-400"
+        >
+          Kelola &amp; Daftar Mekanik
+        </Link>
+        <Link
+          href="/admin/mechanics/performance"
+          className="border-b-2 border-transparent px-4 py-2 text-sm font-medium text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+        >
+          Performa &amp; Analitik Kinerja
+        </Link>
+      </div>
 
       <div className="flex flex-col gap-2 md:flex-row md:flex-wrap md:items-center">
         <SearchInput

@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import Image from 'next/image';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { ServiceGoAuthLottie } from './servicego-auth-lottie';
 
@@ -11,20 +10,14 @@ export function AuthFrame({ children }: { children: React.ReactNode }) {
         <header className="flex items-center justify-between gap-3">
           <Link
             href="/"
-            className="inline-flex items-center gap-2.5 rounded-chip group py-1"
+            className="group flex items-center rounded-chip py-1"
             aria-label="ServiceGo, ke Beranda"
           >
-            {/* Logo PNG dari folder public */}
-            <div className="relative flex items-center h-10 w-auto">
-              <Image
-                src="/logo-servicego-transparent.png"
-                alt="ServiceGo Logo"
-                width={140}
-                height={40}
-                className="h-9 w-auto object-contain transition-transform group-hover:scale-105"
-                priority
-              />
-            </div>
+            <img
+              src="/logo-servicego-full.png?v=6"
+              alt="ServiceGo Logo"
+              className="h-11 sm:h-13 w-auto object-contain transition-transform duration-300 group-hover:scale-105 drop-shadow-md"
+            />
           </Link>
           <ThemeToggle />
         </header>

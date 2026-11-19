@@ -9,9 +9,7 @@ import {
   Bell,
   LogOut,
   ChevronDown,
-  Search,
-  PanelLeftClose,
-  PanelLeftOpen
+  Search
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useAuth } from '@/lib/auth-context';
@@ -19,7 +17,7 @@ import { supabase } from '@/lib/supabase-client';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { CommandPalette } from '@/components/admin/command-palette';
 import { useSupportUnread } from '@/components/admin/use-support-unread';
-import { ADMIN_NAV } from '@/components/admin/nav';
+import { ADMIN_NAV_GROUPS } from '@/components/admin/nav';
 
 const COLLAPSE_KEY = 'sg-admin-sidebar';
 
@@ -27,7 +25,11 @@ const iconBtn =
   'relative inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-ctl text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white transition-colors';
 
 function isActive(pathname: string, href: string) {
-  return pathname === href || pathname.startsWith(href + '/');
+  if (pathname === href) return true;
+  if (href === '/admin/mechanics') {
+    return pathname === '/admin/mechanics';
+  }
+  return pathname.startsWith(href + '/');
 }
 
 /**
@@ -67,41 +69,57 @@ function NavList({
   onNavigate?: () => void;
 }) {
   return (
-    <ul className="space-y-0.5">
-      {ADMIN_NAV.map(({ href, label, icon: Icon }) => {
-        const active = isActive(pathname, href);
-        const badge = href === '/admin/support' && unread > 0 ? unread : 0;
-        return (
-          <li key={href}>
-            <Link
-              href={href}
-              onClick={onNavigate}
-              aria-current={active ? 'page' : undefined}
-              aria-label={badge ? `${label}, ${badge} chat belum dibalas` : collapsed ? label : undefined}
-              title={collapsed ? label : undefined}
-              className={clsx(
-                'relative flex min-h-[44px] items-center gap-3 rounded-chip text-[14px] font-medium transition-colors',
-                collapsed ? 'justify-center' : 'px-3',
-                active
-                  ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/40 dark:text-primary-100'
-                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white'
-              )}
-            >
-              <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={active ? 2.25 : 1.75} aria-hidden />
-              {!collapsed && <span className="flex-1 truncate">{label}</span>}
-              {badge > 0 &&
-                (collapsed ? (
-                  <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-red-600" aria-hidden />
-                ) : (
-                  <span className="min-w-[22px] rounded-full bg-red-600 px-1.5 text-center text-[12px] font-bold leading-[20px] text-white" aria-hidden>
-                    {badge > 99 ? '99+' : badge}
-                  </span>
-                ))}
-            </Link>
-          </li>
-        );
-      })}
-    </ul>
+    <div className="space-y-4">
+      {ADMIN_NAV_GROUPS.map((group, groupIdx) => (
+        <div key={group.group} className="space-y-0.5">
+          {!collapsed ? (
+            <p className="px-3 pb-1 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+              {group.group}
+            </p>
+          ) : (
+            groupIdx > 0 && <div className="my-2 border-t border-slate-200/80 dark:border-slate-800/80" />
+          )}
+          <ul className="space-y-0.5">
+            {group.items.map(({ href, label, icon: Icon }) => {
+              const active = isActive(pathname, href);
+              const badge = href === '/admin/support' && unread > 0 ? unread : 0;
+              return (
+                <li key={href}>
+                  <Link
+                    href={href}
+                    onClick={onNavigate}
+                    aria-current={active ? 'page' : undefined}
+                    aria-label={badge ? `${label}, ${badge} chat belum dibalas` : collapsed ? label : undefined}
+                    title={collapsed ? `${group.group}: ${label}` : undefined}
+                    className={clsx(
+                      'relative flex min-h-[40px] items-center gap-3 rounded-chip text-[14px] font-medium transition-colors',
+                      collapsed ? 'justify-center' : 'px-3',
+                      active
+                        ? 'bg-primary-50 text-primary-700 font-semibold dark:bg-primary-900/40 dark:text-primary-100'
+                        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white'
+                    )}
+                  >
+                    <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={active ? 2.25 : 1.75} aria-hidden />
+                    {!collapsed && <span className="flex-1 truncate">{label}</span>}
+                    {badge > 0 &&
+                      (collapsed ? (
+                        <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-red-600" aria-hidden />
+                      ) : (
+                        <span
+                          className="min-w-[22px] rounded-full bg-red-600 px-1.5 text-center text-[12px] font-bold leading-[20px] text-white"
+                          aria-hidden
+                        >
+                          {badge > 99 ? '99+' : badge}
+                        </span>
+                      ))}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -322,38 +340,16 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
       {/* Sidebar desktop (bisa diciutkan) */}
       <aside
         className={clsx(
-          'hidden shrink-0 flex-col border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 lg:flex',
+          'hidden shrink-0 flex-col border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 lg:flex transition-[width] duration-200',
           collapsed ? 'w-[72px]' : 'w-60'
         )}
       >
         <div className={clsx('flex h-14 items-center border-b border-slate-200 dark:border-slate-800', collapsed ? 'justify-center' : 'px-4')}>
           <Wordmark compact={collapsed} />
         </div>
-        <nav aria-label="Menu admin" className={clsx('flex-1 overflow-y-auto py-3', collapsed ? 'px-3' : 'px-3')}>
+        <nav aria-label="Menu admin" className="flex-1 overflow-y-auto py-3 px-3">
           <NavList pathname={pathname} collapsed={collapsed} unread={unread} />
         </nav>
-        <div className={clsx('border-t border-slate-200 p-3 dark:border-slate-800', collapsed && 'flex justify-center')}>
-          <button
-            type="button"
-            onClick={toggleCollapsed}
-            aria-expanded={!collapsed}
-            aria-label={collapsed ? 'Lebarkan sidebar' : 'Ciutkan sidebar'}
-            title={collapsed ? 'Lebarkan sidebar' : 'Ciutkan sidebar'}
-            className={clsx(
-              'flex min-h-[44px] items-center gap-3 rounded-chip text-[14px] font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white transition-colors',
-              collapsed ? 'w-11 justify-center' : 'w-full px-3'
-            )}
-          >
-            {collapsed ? (
-              <PanelLeftOpen className="h-[18px] w-[18px]" aria-hidden />
-            ) : (
-              <>
-                <PanelLeftClose className="h-[18px] w-[18px]" aria-hidden />
-                Ciutkan menu
-              </>
-            )}
-          </button>
-        </div>
       </aside>
 
       {/* Drawer mobile: <dialog> native, tertutup dengan Escape, tombol X, atau klik latar */}
@@ -393,12 +389,20 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
       {/* Area utama */}
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <header className="flex h-14 shrink-0 items-center gap-2 border-b border-slate-200 bg-white px-2 dark:border-slate-800 dark:bg-slate-900 sm:px-4 lg:px-6">
+          {/* Hamburger Menu Toggle (Desktop & Mobile) */}
           <button
             ref={menuBtnRef}
             type="button"
-            onClick={() => drawerRef.current?.showModal()}
-            aria-label="Buka menu navigasi"
-            className={clsx(iconBtn, 'lg:hidden')}
+            onClick={() => {
+              if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+                drawerRef.current?.showModal();
+              } else {
+                toggleCollapsed();
+              }
+            }}
+            aria-label={collapsed ? 'Lebarkan menu sidebar' : 'Ciutkan menu sidebar'}
+            title={collapsed ? 'Lebarkan menu' : 'Ciutkan menu'}
+            className={iconBtn}
           >
             <Menu className="h-5 w-5" aria-hidden />
           </button>
