@@ -11,15 +11,17 @@ const config: Config = {
     extend: {
       colors: {
         // Design tokens: lihat DESIGN.md (root monorepo)
+        // Netral (bukan biru): satu-satunya warna sorot di portal pelanggan adalah accent oren,
+        // supaya dashboard memakai sistem warna yang sama dengan landing page.
         primary: {
-          50: '#EFF6FF',
-          100: '#DBEAFE',
-          400: '#60A5FA',
-          500: '#3B82F6',
-          600: '#2563EB',
-          700: '#1D4ED8',
-          800: '#1E40AF',
-          900: '#1E3A8A'
+          50: '#F8FAFC',
+          100: '#E2E8F0',
+          400: '#94A3B8',
+          500: '#475569',
+          600: '#1E293B',
+          700: '#0F172A',
+          800: '#0B1220',
+          900: '#020617'
         },
         accent: {
           500: '#F97316',

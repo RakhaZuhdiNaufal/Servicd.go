@@ -54,7 +54,7 @@ function BookingNewPageContent() {
       <div className="space-y-7">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div className="max-w-2xl space-y-3">
-            <h1 className="text-[30px] font-extrabold leading-[1.1] tracking-[-0.015em] text-slate-900 dark:text-white sm:text-[40px]">
+            <h1 className="text-[30px] font-bold leading-[1.1] tracking-[-0.015em] text-slate-900 dark:text-white sm:text-[38px]">
               Booking servis
             </h1>
             <p className="text-[17px] leading-relaxed text-slate-600 dark:text-slate-400">
@@ -134,7 +134,7 @@ function BookingNewPageContent() {
           >
             <h2
               id="ringkasan-mobile"
-              className="mb-5 text-[20px] font-extrabold tracking-[-0.01em] text-slate-900 dark:text-white sm:text-[24px]"
+              className="mb-5 text-[20px] font-bold tracking-[-0.01em] text-slate-900 dark:text-white sm:text-[24px]"
             >
               Cek lagi pilihanmu
             </h2>

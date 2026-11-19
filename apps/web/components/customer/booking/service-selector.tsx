@@ -144,7 +144,7 @@ export function ServiceSelector({
                 >
                   <SelectIndicator selected={checked} shape="square" />
                   <span className="flex min-w-0 flex-1 flex-col gap-2">
-                    <span className="text-[17px] font-bold leading-snug text-slate-900 dark:text-white">{s.name}</span>
+                    <span className="text-[15px] font-semibold leading-snug text-slate-900 dark:text-white">{s.name}</span>
                     {s.description && (
                       <span className="line-clamp-2 text-sm text-slate-600 dark:text-slate-400">
                         {s.description}
@@ -155,7 +155,7 @@ export function ServiceSelector({
                         <Clock className="h-3.5 w-3.5" aria-hidden />
                         {formatDuration(s.duration_minutes)}
                       </span>
-                      <span className="text-[17px] font-extrabold text-slate-900 dark:text-white">{formatRp(s.price)}</span>
+                      <span className="text-[17px] font-bold text-slate-900 dark:text-white">{formatRp(s.price)}</span>
                     </span>
                   </span>
                 </button>

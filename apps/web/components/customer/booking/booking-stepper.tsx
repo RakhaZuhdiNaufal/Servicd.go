@@ -27,7 +27,7 @@ export function BookingStepper({ steps, activeStep }: BookingStepperProps) {
                 href={`#${STEP_ANCHOR[step.key]}`}
                 aria-current={isActive ? 'step' : undefined}
                 className={clsx(
-                  'flex min-h-[52px] flex-col gap-0.5 border-t-[3px] pb-1 pt-2.5 transition-colors hover:border-primary-700 dark:hover:border-primary-100',
+                  'flex min-h-[48px] flex-col gap-0.5 border-t-[3px] pb-1 pt-2.5 transition-colors hover:border-primary-700 dark:hover:border-primary-100',
                   lit ? 'border-primary-600 dark:border-primary-500' : 'border-slate-200 dark:border-slate-700'
                 )}
               >
@@ -111,7 +111,7 @@ export function StepSection({
           <div className="min-w-0">
             <h2
               id={headingId}
-              className="text-[20px] font-extrabold leading-tight tracking-[-0.01em] text-slate-900 dark:text-white sm:text-[24px]"
+              className="text-[20px] font-bold leading-tight tracking-[-0.01em] text-slate-900 dark:text-white sm:text-[24px]"
             >
               {title}
             </h2>
@@ -128,7 +128,7 @@ export function StepSection({
 /** Kelas bersama untuk kartu pilihan (kendaraan, layanan, bengkel). */
 export function optionClass(selected: boolean) {
   return clsx(
-    'flex w-full min-h-[44px] items-start gap-3 rounded-2xl border p-4 text-left transition-colors sm:p-5',
+    'flex w-full min-h-[44px] items-start gap-3 rounded-ctl border p-4 text-left transition-colors sm:p-5',
     selected
       ? 'border-primary-600 bg-primary-50 ring-1 ring-primary-600 dark:border-primary-500 dark:bg-primary-900/40 dark:ring-primary-500'
       : 'border-slate-200 bg-white hover:border-slate-400 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-slate-500'

@@ -74,7 +74,7 @@ export function SchedulePicker({
         <fieldset className="space-y-2.5">
           <legend className="text-[15px] font-bold text-slate-900 dark:text-white">Jam datang</legend>
           {!hasBranch ? (
-            <p className="rounded-2xl bg-slate-50 px-4 py-3.5 text-[15px] text-slate-600 dark:bg-slate-800/60 dark:text-slate-400">
+            <p className="rounded-ctl bg-slate-50 px-4 py-3.5 text-[15px] text-slate-600 dark:bg-slate-800/60 dark:text-slate-400">
               Pilih bengkel dulu, nanti jam yang masih kosong muncul di sini.
             </p>
           ) : !selectedDate ? (
@@ -99,7 +99,7 @@ export function SchedulePicker({
                       disabled={!slot.is_available}
                       onClick={() => onTimeChange(slot.time)}
                       className={clsx(
-                        'flex min-h-[52px] flex-col items-center justify-center rounded-ctl border px-2 py-1.5 text-[15px] font-semibold transition-colors',
+                        'flex min-h-[48px] flex-col items-center justify-center rounded-ctl border px-2 py-1.5 text-[15px] font-semibold transition-colors',
                         selected
                           ? 'border-primary-600 bg-primary-600 font-bold text-white'
                           : slot.is_available

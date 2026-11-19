@@ -77,7 +77,7 @@ export default function CustomerLoginPage() {
   return (
     <div className="space-y-7">
       <div className="space-y-2.5">
-        <h1 className="text-[32px] sm:text-[38px] font-extrabold leading-[1.12] tracking-[-0.02em] text-slate-900 dark:text-white">
+        <h1 className="text-[32px] sm:text-[38px] font-bold leading-[1.12] tracking-[-0.02em] text-slate-900 dark:text-white">
           Masuk ke ServiceGo
         </h1>
         <p className="text-[16px] leading-relaxed text-slate-600 dark:text-slate-400">
@@ -162,7 +162,7 @@ export default function CustomerLoginPage() {
         <button
           type="submit"
           disabled={isSubmitting}
-          className="inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-ctl bg-primary-600 text-[16px] font-bold text-white shadow-sm hover:bg-primary-700 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-70 transition-all"
+          className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-ctl bg-primary-600 text-[16px] font-bold text-white shadow-sm hover:bg-primary-700 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-70 transition-all"
         >
           {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
           {isSubmitting ? 'Sedang masuk...' : 'Masuk'}

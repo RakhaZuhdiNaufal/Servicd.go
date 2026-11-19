@@ -65,7 +65,7 @@ export default function ServiceDetailPage({ params }: { params: Promise<{ id: st
             <SkeletonBlock className="h-5 w-5/6" />
             <SkeletonBlock className="h-24 w-full" />
           </div>
-          <SkeletonBlock className="h-80 rounded-[28px]" />
+          <SkeletonBlock className="h-80 rounded-[20px]" />
         </div>
       )}
 
@@ -95,7 +95,7 @@ export default function ServiceDetailPage({ params }: { params: Promise<{ id: st
                   Kategori {categoryLabel.toLowerCase()}
                 </p>
               )}
-              <h1 className="text-[30px] sm:text-[40px] font-extrabold leading-[1.1] tracking-[-0.015em] text-slate-900 dark:text-white">
+              <h1 className="text-[30px] sm:text-[38px] font-bold leading-[1.1] tracking-[-0.015em] text-slate-900 dark:text-white">
                 {service.name}
               </h1>
               <p className="max-w-2xl text-[17px] leading-relaxed text-slate-600 dark:text-slate-400">
@@ -113,14 +113,14 @@ export default function ServiceDetailPage({ params }: { params: Promise<{ id: st
                 <ReceiptText className="mt-0.5 h-6 w-6 shrink-0 text-primary-600 dark:text-primary-500" aria-hidden />
                 <div>
                   <dt className="text-[15px] text-slate-600 dark:text-slate-400">Harga layanan</dt>
-                  <dd className="text-[22px] font-extrabold text-slate-900 dark:text-white">{formatRp(service.price)}</dd>
+                  <dd className="text-[22px] font-bold text-slate-900 dark:text-white">{formatRp(service.price)}</dd>
                 </div>
               </div>
               <div className="flex items-start gap-3.5 px-6 py-5">
                 <Clock className="mt-0.5 h-6 w-6 shrink-0 text-primary-600 dark:text-primary-500" aria-hidden />
                 <div>
                   <dt className="text-[15px] text-slate-600 dark:text-slate-400">Perkiraan durasi</dt>
-                  <dd className="text-[22px] font-extrabold text-slate-900 dark:text-white">
+                  <dd className="text-[22px] font-bold text-slate-900 dark:text-white">
                     {formatDuration(service.duration_minutes)}
                   </dd>
                 </div>
@@ -132,7 +132,7 @@ export default function ServiceDetailPage({ params }: { params: Promise<{ id: st
                 <div className="space-y-1.5">
                   <h2
                     id="lain-title"
-                    className="text-[24px] sm:text-[28px] font-extrabold leading-[1.15] tracking-[-0.015em] text-slate-900 dark:text-white"
+                    className="text-[24px] sm:text-[28px] font-bold leading-[1.15] tracking-[-0.015em] text-slate-900 dark:text-white"
                   >
                     Bisa digabung dalam satu booking
                   </h2>
@@ -145,7 +145,7 @@ export default function ServiceDetailPage({ params }: { params: Promise<{ id: st
                     <li key={s.id}>
                       <Link
                         href={`/services/${s.id}`}
-                        className="flex h-full min-h-[44px] flex-col justify-between gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-4 transition-colors hover:border-primary-600 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-primary-500"
+                        className="flex h-full min-h-[44px] flex-col justify-between gap-2 rounded-ctl border border-slate-200 bg-white px-5 py-4 transition-colors hover:border-primary-600 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-primary-500"
                       >
                         <span className="font-bold text-slate-900 dark:text-white">{s.name}</span>
                         <span className="flex flex-wrap items-center gap-x-3 text-sm text-slate-600 dark:text-slate-400">
@@ -166,16 +166,16 @@ export default function ServiceDetailPage({ params }: { params: Promise<{ id: st
           {/* Panel gelap: satu jeda ritme di halaman ini, berisi aksi booking. */}
           <aside
             aria-label="Booking layanan ini"
-            className="rounded-[28px] bg-slate-900 p-6 text-white sm:p-8 lg:sticky lg:top-24 dark:bg-slate-950 dark:ring-1 dark:ring-slate-800"
+            className="rounded-[20px] bg-slate-900 p-6 text-white sm:p-8 lg:sticky lg:top-24 dark:bg-slate-950 dark:ring-1 dark:ring-slate-800"
           >
             {service.is_active ? (
               <>
                 <p className="text-[15px] text-slate-300">Estimasi biaya</p>
-                <p className="mt-1 text-[34px] font-extrabold leading-none tracking-[-0.015em]">{formatRp(service.price)}</p>
+                <p className="mt-1 text-[34px] font-bold leading-none tracking-[-0.015em]">{formatRp(service.price)}</p>
                 <p className="mt-2 text-sm text-slate-300">Kode promo bisa dipakai di ringkasan booking.</p>
                 <Link
                   href={`/booking/new?service_id=${service.id}`}
-                  className="mt-6 inline-flex min-h-[52px] w-full items-center justify-center gap-2.5 rounded-ctl bg-accent-500 px-6 text-[17px] font-bold text-slate-950 hover:bg-accent-600 transition-colors"
+                  className="mt-6 inline-flex min-h-[48px] w-full items-center justify-center gap-2.5 rounded-ctl bg-accent-500 px-6 text-[15px] font-semibold text-slate-950 hover:bg-accent-600 transition-colors"
                 >
                   <CalendarPlus className="h-5 w-5" aria-hidden />
                   Booking servis ini

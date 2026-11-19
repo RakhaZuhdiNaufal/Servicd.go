@@ -19,7 +19,7 @@ export function EmptyState({
   return (
     <div
       className={clsx(
-        'flex flex-col items-center text-center gap-3 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 px-6 py-10',
+        'flex flex-col items-center text-center gap-3 rounded-ctl border border-dashed border-slate-300 dark:border-slate-700 px-6 py-10',
         className
       )}
     >
@@ -69,7 +69,7 @@ export function ErrorState({
     <div
       role="alert"
       className={clsx(
-        'flex flex-col sm:flex-row sm:items-center gap-3 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 dark:border-red-900 dark:bg-red-950/40',
+        'flex flex-col sm:flex-row sm:items-center gap-3 rounded-ctl border border-red-200 bg-red-50 px-5 py-4 dark:border-red-900 dark:bg-red-950/40',
         className
       )}
     >

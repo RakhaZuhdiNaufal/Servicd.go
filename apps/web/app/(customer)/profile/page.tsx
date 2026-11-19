@@ -17,6 +17,7 @@ import { formatDate, formatRp } from '@/lib/format';
 import { Plate } from '@/components/customer/plate';
 import { MaintenanceList } from '@/components/customer/maintenance-list';
 import { EmptyState, ErrorState, SkeletonBlock } from '@/components/customer/states';
+import { btnDanger, btnPrimary, btnSecondary, h1, h2 } from '@/components/customer/ui';
 
 /** Bentuk data GET /api/v1/profile */
 interface ProfileResponse {
@@ -51,12 +52,6 @@ const inputClass =
   'h-11 w-full rounded-ctl border bg-white px-3.5 text-[15px] text-slate-900 placeholder:text-slate-500 transition-colors dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500';
 const labelClass = 'block text-sm font-medium text-slate-800 dark:text-slate-200';
 const errorTextClass = 'text-sm text-red-700 dark:text-red-300';
-const btnPrimary =
-  'inline-flex min-h-[44px] items-center justify-center gap-2 rounded-ctl bg-primary-600 px-4 text-sm font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-70 transition-colors';
-const btnSecondary =
-  'inline-flex min-h-[44px] items-center justify-center gap-2 rounded-ctl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-800 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 transition-colors';
-const btnDanger =
-  'inline-flex min-h-[44px] items-center justify-center gap-2 rounded-ctl bg-red-600 px-4 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-70 transition-colors';
 
 function borderFor(error?: unknown) {
   return error ? 'border-red-500 dark:border-red-500' : 'border-slate-300 dark:border-slate-700';
@@ -119,7 +114,7 @@ function Modal({
         <div className="space-y-5 p-6">
           <div className="flex items-start justify-between gap-3">
             <div className="space-y-1">
-              <h2 id={titleId} className="text-[22px] font-extrabold tracking-[-0.01em] text-slate-900 dark:text-white">
+              <h2 id={titleId} className="text-[20px] font-bold tracking-[-0.01em] text-slate-900 dark:text-white">
                 {title}
               </h2>
               {description && (
@@ -359,7 +354,7 @@ export default function ProfilePage() {
   return (
     <div className="space-y-8 sm:space-y-10">
       <div className="max-w-2xl space-y-3">
-        <h1 className="text-[30px] font-extrabold leading-[1.1] tracking-[-0.015em] text-slate-900 dark:text-white sm:text-[40px]">
+        <h1 className={h1}>
           Profil
         </h1>
         <p className="text-[17px] leading-relaxed text-slate-600 dark:text-slate-400">
@@ -407,7 +402,7 @@ export default function ProfilePage() {
                     {initials(fullName)}
                   </span>
                   <div className="min-w-0">
-                    <p className="text-xl font-extrabold leading-tight tracking-[-0.01em] text-slate-900 dark:text-white break-words">
+                    <p className="text-[19px] font-bold leading-tight tracking-[-0.01em] text-slate-900 dark:text-white break-words">
                       {fullName}
                     </p>
                     <p className="text-sm text-slate-600 dark:text-slate-400">Akun pelanggan</p>
@@ -455,13 +450,13 @@ export default function ProfilePage() {
                   <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-5">
                     <div>
                       <dt className="text-[13px] text-slate-300">Booking (tanpa yang batal)</dt>
-                      <dd className="mt-0.5 text-[32px] font-extrabold leading-none tracking-[-0.015em]">
+                      <dd className="mt-0.5 text-[30px] font-bold leading-none tracking-[-0.015em]">
                         {stats.total_bookings}
                       </dd>
                     </div>
                     <div>
                       <dt className="text-[13px] text-slate-300">Servis terakhir</dt>
-                      <dd className="mt-1.5 text-[17px] font-bold">
+                      <dd className="mt-1.5 text-[15px] font-semibold">
                         {stats.last_service_date
                           ? formatDate(stats.last_service_date, { day: 'numeric', month: 'short', year: 'numeric' })
                           : 'Belum ada'}
@@ -469,7 +464,7 @@ export default function ProfilePage() {
                     </div>
                     <div className="col-span-2 border-t border-slate-700 pt-4">
                       <dt className="text-[13px] text-slate-300">Biaya servis selesai (estimasi)</dt>
-                      <dd className="mt-0.5 text-[26px] font-extrabold tracking-[-0.015em]">{formatRp(stats.total_spent)}</dd>
+                      <dd className="mt-0.5 text-[24px] font-bold tracking-[-0.015em]">{formatRp(stats.total_spent)}</dd>
                     </div>
                   </dl>
                   <Link
@@ -499,7 +494,7 @@ export default function ProfilePage() {
             <div className="space-y-1">
               <h2
                 id="kendaraan-heading"
-                className="text-[24px] font-extrabold tracking-[-0.01em] text-slate-900 dark:text-white sm:text-[28px]"
+                className={h2}
               >
                 Kendaraan saya
               </h2>
@@ -566,7 +561,7 @@ export default function ProfilePage() {
                         </span>
                       </div>
                       <div>
-                        <h3 className="text-xl font-extrabold tracking-[-0.01em] text-slate-900 dark:text-white break-words">
+                        <h3 className="text-[19px] font-bold tracking-[-0.01em] text-slate-900 dark:text-white break-words">
                           {v.brand} {v.model}
                         </h3>
                         <p className="text-[15px] text-slate-600 dark:text-slate-400">Tahun {v.year}</p>
@@ -593,7 +588,7 @@ export default function ProfilePage() {
                           </dd>
                         </div>
                       </dl>
-                      <div className="rounded-2xl bg-slate-50 p-4 dark:bg-slate-800/60">
+                      <div className="rounded-ctl bg-slate-50 p-4 dark:bg-slate-800/60">
                         <MaintenanceList vehicleId={v.id} />
                       </div>
                       <Link

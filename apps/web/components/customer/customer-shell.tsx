@@ -163,7 +163,9 @@ export function CustomerShell({ children }: { children: React.ReactNode }) {
   }
 
   const onBookingFlow = pathname.startsWith('/booking/');
-  const isHome = pathname === '/';
+  // Header transparan + konten full-bleed hanya untuk landing tamu; dashboard pelanggan
+  // butuh header biasa, kalau tidak judulnya tertimpa logo.
+  const isHome = pathname === '/' && !session;
 
   return (
     <div className="min-h-screen bg-[var(--bg-base)] flex flex-col">

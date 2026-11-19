@@ -118,7 +118,7 @@ function Card({ title, children, id, className }: { title: string; children: Rea
         className
       )}
     >
-      <h2 id={hid} className="mb-5 text-[20px] font-extrabold tracking-[-0.01em] text-slate-900 dark:text-white sm:text-[22px]">
+      <h2 id={hid} className="mb-5 text-[20px] font-bold tracking-[-0.01em] text-slate-900 dark:text-white sm:text-[22px]">
         {title}
       </h2>
       {children}
@@ -130,7 +130,7 @@ function DetailSkeleton() {
   return (
     <div className="space-y-8" role="status" aria-label="Memuat detail booking">
       <SkeletonBlock className="h-5 w-32" />
-      <SkeletonBlock className="h-72 w-full rounded-[28px]" />
+      <SkeletonBlock className="h-72 w-full rounded-[20px]" />
       <div className="grid gap-6 lg:grid-cols-3">
         <SkeletonBlock className="h-64 rounded-[20px] lg:col-span-2" />
         <SkeletonBlock className="h-48 rounded-[20px]" />
@@ -291,7 +291,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
         {/* Fokus halaman: status sekarang dan langkah berikutnya. */}
         <section
           aria-labelledby="status-sekarang"
-          className="overflow-hidden rounded-[28px] border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900"
+          className="overflow-hidden rounded-[20px] border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900"
         >
           <div className="space-y-5 p-6 sm:p-9">
             <div className="flex flex-wrap items-center gap-2">
@@ -300,7 +300,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
             </div>
             <h1
               id="status-sekarang"
-              className="max-w-3xl text-[30px] font-extrabold leading-[1.1] tracking-[-0.015em] text-slate-900 dark:text-white sm:text-[40px]"
+              className="max-w-3xl text-[30px] font-bold leading-[1.1] tracking-[-0.015em] text-slate-900 dark:text-white sm:text-[38px]"
             >
               {headline(booking)}
             </h1>
@@ -325,13 +325,13 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                       <span
                         className={clsx(
                           'block h-2 rounded',
-                          done ? 'bg-primary-600 dark:bg-primary-500' : 'bg-slate-200 dark:bg-slate-700'
+                          done ? 'bg-accent-500' : 'bg-slate-200 dark:bg-slate-700'
                         )}
                         aria-hidden
                       />
                       <span
                         className={clsx(
-                          'flex items-center gap-1 text-[13px] sm:text-[15px]',
+                          'flex items-center gap-1 text-[11px] leading-tight sm:text-[15px]',
                           now
                             ? 'font-bold text-slate-900 dark:text-white'
                             : done
@@ -359,7 +359,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
             {booking.status === 'selesai' && !booking.review && (
               <a
                 href="#ulasan"
-                className="inline-flex min-h-[52px] shrink-0 items-center justify-center self-start rounded-ctl bg-white px-6 text-[17px] font-bold text-slate-900 transition-colors hover:bg-slate-100 sm:self-auto"
+                className="inline-flex min-h-[48px] shrink-0 items-center justify-center self-start rounded-ctl bg-white px-6 text-[15px] font-semibold text-slate-900 transition-colors hover:bg-slate-100 sm:self-auto"
               >
                 Tulis ulasan
               </a>
@@ -367,7 +367,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
             {cancelled && (
               <Link
                 href="/booking/new"
-                className="inline-flex min-h-[52px] shrink-0 items-center justify-center self-start rounded-ctl bg-white px-6 text-[17px] font-bold text-slate-900 transition-colors hover:bg-slate-100 sm:self-auto"
+                className="inline-flex min-h-[48px] shrink-0 items-center justify-center self-start rounded-ctl bg-white px-6 text-[15px] font-semibold text-slate-900 transition-colors hover:bg-slate-100 sm:self-auto"
               >
                 Buat booking baru
               </Link>
@@ -375,7 +375,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
             {(booking.status === 'menunggu' || booking.status === 'dikonfirmasi' || booking.status === 'diproses') && tel && (
               <a
                 href={`tel:${tel}`}
-                className="inline-flex min-h-[52px] shrink-0 items-center justify-center gap-2 self-start rounded-ctl border border-slate-600 px-6 text-[17px] font-semibold text-white transition-colors hover:bg-slate-800 sm:self-auto"
+                className="inline-flex min-h-[48px] shrink-0 items-center justify-center gap-2 self-start rounded-ctl border border-slate-600 px-6 text-[17px] font-semibold text-white transition-colors hover:bg-slate-800 sm:self-auto"
               >
                 <Phone className="h-4 w-4" aria-hidden />
                 Telepon bengkel
@@ -425,11 +425,11 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                 <span className="font-semibold text-slate-900 dark:text-white">
                   {booking.final_cost != null ? 'Biaya akhir' : 'Estimasi biaya'}
                 </span>
-                <span className="text-[28px] font-extrabold tracking-[-0.015em] text-slate-900 dark:text-white">{formatRp(total)}</span>
+                <span className="text-[28px] font-bold tracking-[-0.015em] text-slate-900 dark:text-white">{formatRp(total)}</span>
               </div>
             </div>
             {booking.complaint_notes && (
-              <div className="mt-5 rounded-2xl bg-slate-50 p-4 dark:bg-slate-800/60 sm:p-5">
+              <div className="mt-5 rounded-ctl bg-slate-50 p-4 dark:bg-slate-800/60 sm:p-5">
                 <p className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">Keluhan yang kamu tulis</p>
                 <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">{booking.complaint_notes}</p>
               </div>
@@ -457,7 +457,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                                 href={p.photo_url}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="block overflow-hidden rounded-2xl border border-slate-200 transition-colors hover:border-slate-400 dark:border-slate-700 dark:hover:border-slate-500"
+                                className="block overflow-hidden rounded-ctl border border-slate-200 transition-colors hover:border-slate-400 dark:border-slate-700 dark:hover:border-slate-500"
                               >
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
                                 <img
@@ -596,7 +596,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                     .toUpperCase()}
                 </span>
                 <div className="min-w-0">
-                  <p className="text-[17px] font-bold text-slate-900 dark:text-white">{booking.mechanic.full_name}</p>
+                  <p className="text-[15px] font-semibold text-slate-900 dark:text-white">{booking.mechanic.full_name}</p>
                   <p className="text-[13px] text-slate-600 dark:text-slate-400">{booking.mechanic.specialty}</p>
                 </div>
               </div>

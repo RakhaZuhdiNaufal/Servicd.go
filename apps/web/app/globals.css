@@ -90,6 +90,34 @@
     animation: muncul-halus 450ms cubic-bezier(0.22, 1, 0.36, 1) both;
   }
 
+  /* Panggung mobil 3D: masuk dari kanan, keluar ke kiri. */
+  @keyframes mobil-masuk {
+    from {
+      opacity: 0;
+      transform: translateX(55%);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes mobil-keluar {
+    from {
+      opacity: 1;
+      transform: none;
+    }
+    to {
+      opacity: 0;
+      transform: translateX(-55%);
+    }
+  }
+  .mobil-masuk {
+    animation: mobil-masuk 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .mobil-keluar {
+    animation: mobil-keluar 450ms cubic-bezier(0.55, 0, 1, 0.45) both;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
       animation-duration: 0.01ms !important;

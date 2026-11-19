@@ -13,6 +13,8 @@ import { Plate } from '@/components/customer/plate';
 import { EmptyState, ErrorState, SkeletonBlock } from '@/components/customer/states';
 import { StatusBadge } from '@/components/status-badge';
 import { GuestLanding } from '@/components/customer/landing';
+import { btnAccent, btnPrimary, btnSecondary, card, h1, h2, lead, linkText, pageStack } from '@/components/customer/ui';
+import { CarShowcase } from '@/components/customer/car-showcase';
 import { WorkshopFront } from '@/components/illustrations/workshop';
 import {
   SERVICE_CATEGORIES,
@@ -71,18 +73,6 @@ interface Booking {
 interface ProfileResponse {
   profile: { full_name: string };
 }
-
-const ctaAccent =
-  'inline-flex min-h-[52px] items-center justify-center gap-2.5 rounded-ctl bg-accent-500 px-6 text-[17px] font-bold text-slate-950 hover:bg-accent-600 transition-colors';
-const btnPrimary =
-  'inline-flex min-h-[52px] items-center justify-center gap-2 rounded-ctl bg-primary-600 px-6 text-[16px] font-bold text-white hover:bg-primary-700 transition-colors';
-const btnSecondary =
-  'inline-flex min-h-[44px] items-center justify-center gap-2 rounded-ctl border border-slate-300 bg-white px-4 text-[15px] font-semibold text-slate-900 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:hover:bg-slate-800 transition-colors';
-const card = 'rounded-[20px] border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900';
-const h2 = 'text-[24px] sm:text-[30px] font-extrabold leading-[1.15] tracking-[-0.015em] text-slate-900 dark:text-white';
-const lead = 'text-[16px] leading-relaxed text-slate-600 dark:text-slate-400';
-const linkText =
-  'inline-flex min-h-[44px] items-center text-[15px] font-semibold text-primary-700 hover:underline dark:text-primary-100';
 
 const longDate = (iso: string) =>
   formatDate(iso, { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Asia/Jakarta' });
@@ -166,19 +156,16 @@ function MemberHome() {
   }
 
   return (
-    <div className="space-y-14 sm:space-y-16">
+    <div className={pageStack}>
       <section aria-labelledby="sapa-title" className="space-y-6 pt-2 sm:pt-4">
         <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
           <div className="max-w-2xl space-y-2">
-            <h1
-              id="sapa-title"
-              className="text-[30px] sm:text-[40px] font-extrabold leading-[1.1] tracking-[-0.015em] text-slate-900 dark:text-white"
-            >
+            <h1 id="sapa-title" className={h1}>
               {firstName ? `Halo, ${firstName}` : 'Halo'}
             </h1>
-            <p className="text-[17px] leading-relaxed text-slate-600 dark:text-slate-400">{subline}</p>
+            <p className={lead}>{subline}</p>
           </div>
-          <Link href="/booking/new" className={clsx(ctaAccent, 'shrink-0')}>
+          <Link href="/booking/new" className={clsx(btnAccent, 'shrink-0')}>
             <CalendarPlus className="h-5 w-5" aria-hidden />
             Booking servis baru
           </Link>
@@ -188,6 +175,7 @@ function MemberHome() {
       </section>
 
       <VehiclesSection bookings={bookingsQuery.data} />
+      <CarShowcase />
       <ServicesSection />
       <PromosSection />
     </div>
@@ -209,7 +197,7 @@ function ActiveBookingPanel({
   const next = active[0];
   const others = active.length - 1;
 
-  if (query.isLoading) return <SkeletonBlock className="h-80 w-full rounded-[28px]" />;
+  if (query.isLoading) return <SkeletonBlock className="h-80 w-full rounded-[20px]" />;
 
   if (query.isError) {
     return (
@@ -223,7 +211,7 @@ function ActiveBookingPanel({
 
   if (query.isSuccess && !next) {
     return (
-      <div className="flex flex-col gap-4 rounded-[28px] border border-dashed border-slate-300 px-6 py-8 sm:flex-row sm:items-center sm:px-8 dark:border-slate-700">
+      <div className="flex flex-col gap-4 rounded-[20px] border border-dashed border-slate-300 px-6 py-8 sm:flex-row sm:items-center sm:px-8 dark:border-slate-700">
         <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-ctl bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
           <ClipboardList className="h-6 w-6" aria-hidden />
         </span>
@@ -246,12 +234,9 @@ function ActiveBookingPanel({
     <div className="space-y-2">
       <article
         aria-labelledby="aktif-title"
-        className={clsx(
-          'overflow-hidden rounded-[28px] border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900',
-          'lg:grid lg:grid-cols-[1.35fr_1fr]'
-        )}
+        className={clsx(card, 'overflow-hidden lg:grid lg:grid-cols-[1.35fr_1fr]')}
       >
-        <div className="space-y-7 p-6 sm:p-8">
+        <div className="space-y-6 p-6 sm:p-8">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <StatusBadge status={next.status} />
             <p className="text-sm text-slate-600 dark:text-slate-400">
@@ -261,13 +246,16 @@ function ActiveBookingPanel({
           </div>
 
           <div className="space-y-1">
-            <h2 id="aktif-title" className="text-[15px] font-bold text-primary-700 dark:text-primary-100">
+            <h2
+              id="aktif-title"
+              className="text-[13px] font-semibold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400"
+            >
               Booking aktif
             </h2>
-            <p className="text-[26px] sm:text-[34px] font-extrabold leading-[1.1] tracking-[-0.015em] text-slate-900 dark:text-white">
+            <p className="text-[24px] sm:text-[30px] font-bold leading-[1.15] tracking-[-0.015em] text-slate-900 dark:text-white">
               {longDate(next.scheduled_at)}
             </p>
-            <p className="text-[17px] text-slate-700 dark:text-slate-300">Datang pukul {wibTime(next.scheduled_at)}</p>
+            <p className="text-[16px] text-slate-600 dark:text-slate-400">Datang pukul {wibTime(next.scheduled_at)}</p>
           </div>
 
           <div>
@@ -275,11 +263,14 @@ function ActiveBookingPanel({
               {PROGRESS.map((p, i) => (
                 <span
                   key={p}
-                  className={clsx('h-1.5 rounded', i < step ? 'bg-primary-600' : 'bg-slate-200 dark:bg-slate-700')}
+                  className={clsx('h-1.5 rounded', i < step ? 'bg-accent-500' : 'bg-slate-200 dark:bg-slate-700')}
                 />
               ))}
             </div>
-            <ol className="mt-2 grid grid-cols-4 text-[13px] text-slate-600 dark:text-slate-400" aria-label="Tahap servis">
+            <ol
+              className="mt-2 grid grid-cols-4 gap-1.5 text-[11px] leading-tight text-slate-600 sm:text-[13px] dark:text-slate-400"
+              aria-label="Tahap servis"
+            >
               {PROGRESS.map((p, i) => (
                 <li
                   key={p}
@@ -338,7 +329,7 @@ function ActiveBookingPanel({
                 <span className="text-[15px] text-slate-900 dark:text-white">{services || 'Layanan belum tercatat'}</span>
                 <span className="text-sm text-slate-600 dark:text-slate-400">
                   Estimasi{' '}
-                  <span className="text-lg font-extrabold text-slate-900 dark:text-white">
+                  <span className="text-lg font-bold text-slate-900 dark:text-white">
                     {formatRp(next.estimated_cost)}
                   </span>
                 </span>
@@ -351,10 +342,7 @@ function ActiveBookingPanel({
               Lihat detail booking
             </Link>
             {next.branch?.phone && (
-              <a
-                href={`tel:${next.branch.phone.replace(/[^0-9+]/g, '')}`}
-                className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-ctl border border-slate-300 px-5 text-[15px] font-semibold text-slate-900 hover:bg-slate-50 dark:border-slate-700 dark:text-white dark:hover:bg-slate-800 transition-colors"
-              >
+              <a href={`tel:${next.branch.phone.replace(/[^0-9+]/g, '')}`} className={btnSecondary}>
                 <Phone className="h-4 w-4" aria-hidden />
                 Telepon bengkel
               </a>
@@ -362,7 +350,7 @@ function ActiveBookingPanel({
           </div>
         </div>
 
-        <div className="hidden items-end bg-primary-50 lg:flex dark:bg-slate-800">
+        <div className="hidden items-end border-l border-slate-200 bg-slate-100 lg:flex dark:border-slate-800 dark:bg-slate-800">
           <WorkshopFront decorative />
         </div>
       </article>
@@ -451,7 +439,7 @@ function VehiclesSection({ bookings }: { bookings?: Booking[] }) {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 space-y-2.5">
                     <Plate number={v.plate_number} size="lg" />
-                    <p className="text-lg font-bold text-slate-900 dark:text-white">
+                    <p className="text-[17px] font-semibold text-slate-900 dark:text-white">
                       {v.brand} {v.model}
                       {v.year ? <span className="font-medium text-slate-600 dark:text-slate-400"> ({v.year})</span> : null}
                     </p>
@@ -541,7 +529,7 @@ function ServicesSection() {
         <h2 id="layanan-title" className={h2}>
           Layanan dan harga
         </h2>
-        <p className={lead}>Harga dan durasi ini yang dipakai untuk menghitung estimasi di form booking.</p>
+        <p className={lead}>Pilih layanan, lalu lanjut booking dengan estimasi biaya yang sudah terhitung.</p>
       </div>
 
       {servicesQuery.isLoading && (
@@ -584,14 +572,11 @@ function ServicesSection() {
                     className={clsx(
                       'min-h-[44px] rounded-chip border px-4 text-[15px] font-semibold transition-colors',
                       on
-                        ? 'border-primary-600 bg-primary-600 text-white'
+                        ? 'border-slate-900 bg-slate-900 text-white dark:border-white dark:bg-white dark:text-slate-900'
                         : 'border-slate-300 bg-white text-slate-900 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:hover:bg-slate-800'
                     )}
                   >
                     {c.label}
-                    <span className={clsx('ml-1.5 text-sm', on ? 'text-primary-100' : 'text-slate-500 dark:text-slate-400')}>
-                      {grouped.get(c.id)?.length}
-                    </span>
                   </button>
                 );
               })}
@@ -601,12 +586,12 @@ function ServicesSection() {
             {list.map((s) => (
               <li
                 key={s.id}
-                className="flex h-full flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800 dark:bg-slate-900"
+                className={clsx(card, 'flex h-full flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between')}
               >
                 <div className="min-w-0">
                   <Link
                     href={`/services/${s.id}`}
-                    className="font-bold text-slate-900 hover:text-primary-700 hover:underline dark:text-white dark:hover:text-primary-100"
+                    className="text-[16px] font-semibold text-slate-900 underline-offset-4 hover:underline dark:text-white"
                   >
                     {s.name}
                   </Link>
@@ -614,7 +599,7 @@ function ServicesSection() {
                     <p className="mt-1 line-clamp-2 text-sm text-slate-600 dark:text-slate-400">{s.description}</p>
                   )}
                   <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-slate-600 dark:text-slate-400">
-                    <span className="text-lg font-extrabold text-slate-900 dark:text-white">{formatRp(s.price)}</span>
+                    <span className="text-[15px] font-semibold text-slate-900 dark:text-white">{formatRp(s.price)}</span>
                     <span className="inline-flex items-center gap-1.5">
                       <Clock className="h-3.5 w-3.5" aria-hidden />
                       {formatDuration(s.duration_minutes)}
@@ -684,12 +669,12 @@ function PromosSection() {
                   <span className="sr-only">Kode promo </span>
                   {p.code}
                 </span>
-                <span className="text-[26px] font-extrabold text-orange-700 dark:text-orange-400">
+                <span className="text-[24px] font-bold text-accent-600 dark:text-accent-500">
                   {p.discount_percent}%
                 </span>
               </div>
               <div className="space-y-1">
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white">{p.title}</h3>
+                <h3 className="text-[17px] font-semibold text-slate-900 dark:text-white">{p.title}</h3>
                 <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-400">{p.description}</p>
               </div>
 

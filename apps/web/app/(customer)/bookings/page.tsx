@@ -74,7 +74,7 @@ function ActiveBookingCard({ b }: { b: Booking }) {
   return (
     <Link
       href={`/bookings/${b.id}`}
-      className="group block rounded-[28px] bg-slate-900 p-6 text-white transition-colors hover:bg-slate-800 dark:bg-slate-950 dark:ring-1 dark:ring-slate-800 dark:hover:bg-slate-900 sm:p-9"
+      className="group block rounded-[20px] bg-slate-900 p-6 text-white transition-colors hover:bg-slate-800 dark:bg-slate-950 dark:ring-1 dark:ring-slate-800 dark:hover:bg-slate-900 sm:p-9"
     >
       <div className="grid gap-6 lg:grid-cols-[1fr_auto] lg:items-end lg:gap-10">
         <div className="min-w-0 space-y-4">
@@ -82,7 +82,7 @@ function ActiveBookingCard({ b }: { b: Booking }) {
             <StatusBadge status={b.status} size="sm" />
             <span className="font-mono text-[13px] text-slate-300">{bookingCode(b.id)}</span>
           </div>
-          <p className="text-[24px] font-extrabold leading-tight tracking-[-0.015em] sm:text-[32px]">{activeSentence(b)}</p>
+          <p className="text-[24px] font-bold leading-tight tracking-[-0.015em] sm:text-[32px]">{activeSentence(b)}</p>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[15px] text-slate-300">
             <Plate number={b.vehicle.plate_number} size="md" className="dark:outline-slate-600" />
             <span className="font-semibold capitalize text-white">
@@ -98,16 +98,21 @@ function ActiveBookingCard({ b }: { b: Booking }) {
               <li key={p.status} className="space-y-1.5" aria-current={i === idx ? 'step' : undefined}>
                 <span
                   aria-hidden
-                  className={clsx('block h-1.5 rounded', i <= idx ? 'bg-primary-500' : 'bg-slate-700')}
+                  className={clsx('block h-1.5 rounded', i <= idx ? 'bg-accent-500' : 'bg-slate-700')}
                 />
-                <span className={clsx('block text-[13px]', i === idx ? 'font-bold text-white' : 'text-slate-300')}>
+                <span
+                  className={clsx(
+                    'block text-[11px] leading-tight sm:text-[13px]',
+                    i === idx ? 'font-bold text-white' : 'text-slate-300'
+                  )}
+                >
                   {p.label}
                 </span>
               </li>
             ))}
           </ol>
         </div>
-        <span className="inline-flex min-h-[52px] shrink-0 items-center justify-center gap-1.5 self-start rounded-ctl bg-white px-6 text-[17px] font-bold text-slate-900 transition-colors group-hover:bg-slate-100 lg:self-auto">
+        <span className="inline-flex min-h-[48px] shrink-0 items-center justify-center gap-1.5 self-start rounded-ctl bg-white px-6 text-[15px] font-semibold text-slate-900 transition-colors group-hover:bg-slate-100 lg:self-auto">
           Lihat detail booking
           <ChevronRight className="h-5 w-5" aria-hidden />
         </span>
@@ -130,7 +135,7 @@ function BookingCard({ b }: { b: Booking }) {
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <Plate number={b.vehicle.plate_number} size="md" />
-        <span className="text-[17px] font-bold capitalize text-slate-900 dark:text-white">
+        <span className="text-[15px] font-semibold capitalize text-slate-900 dark:text-white">
           {b.vehicle.brand} {b.vehicle.model}
         </span>
       </div>
@@ -149,7 +154,7 @@ function BookingCard({ b }: { b: Booking }) {
             </p>
           )}
         </div>
-        <p className="text-lg font-extrabold text-slate-900 dark:text-white">{formatRp(cost)}</p>
+        <p className="text-lg font-bold text-slate-900 dark:text-white">{formatRp(cost)}</p>
       </div>
     </Link>
   );
@@ -196,7 +201,7 @@ export default function BookingsPage() {
       <div className="space-y-6">
         <div>
           <div className="max-w-2xl space-y-3">
-            <h1 className="text-[30px] font-extrabold leading-[1.1] tracking-[-0.015em] text-slate-900 dark:text-white sm:text-[40px]">
+            <h1 className="text-[30px] font-bold leading-[1.1] tracking-[-0.015em] text-slate-900 dark:text-white sm:text-[38px]">
               Riwayat booking
             </h1>
             <p className="text-[17px] leading-relaxed text-slate-600 dark:text-slate-400">
@@ -271,7 +276,7 @@ export default function BookingsPage() {
 
           {rest.length > 0 && (
             <section aria-labelledby="daftar-booking" className="space-y-4">
-              <h2 id="daftar-booking" className="text-[22px] font-extrabold tracking-[-0.01em] text-slate-900 dark:text-white sm:text-[24px]">
+              <h2 id="daftar-booking" className="text-[22px] font-bold tracking-[-0.01em] text-slate-900 dark:text-white sm:text-[24px]">
                 {filter === 'semua' ? (running.length > 0 ? 'Sebelumnya' : 'Semua booking') : FILTERS.find((f) => f.value === filter)?.label}
               </h2>
               <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

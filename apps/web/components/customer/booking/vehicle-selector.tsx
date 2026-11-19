@@ -64,9 +64,9 @@ export function VehicleSelector({
       {authLoading || isLoading ? (
         <VehicleSkeleton count={2} />
       ) : isGuest ? (
-        <div className="flex flex-col gap-4 rounded-2xl bg-slate-50 p-5 dark:bg-slate-800/60 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-4 rounded-ctl bg-slate-50 p-5 dark:bg-slate-800/60 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-1">
-            <p className="text-[17px] font-bold text-slate-900 dark:text-white">Masuk dulu untuk memilih kendaraan</p>
+            <p className="text-[15px] font-semibold text-slate-900 dark:text-white">Masuk dulu untuk memilih kendaraan</p>
             <p className="text-[15px] text-slate-600 dark:text-slate-400">
               Layanan, bengkel, dan jam kosong di bawah tetap bisa kamu lihat sekarang.
             </p>
@@ -114,7 +114,7 @@ export function VehicleSelector({
                 <span className="min-w-0 flex-1 space-y-2">
                   <span className="flex items-center gap-2">
                     <Icon className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" aria-hidden />
-                    <span className="truncate text-[17px] font-bold capitalize text-slate-900 dark:text-white">
+                    <span className="truncate text-[15px] font-semibold capitalize text-slate-900 dark:text-white">
                       {v.brand} {v.model}
                     </span>
                   </span>
@@ -131,7 +131,7 @@ export function VehicleSelector({
           })}
           <Link
             href="/profile"
-            className="flex min-h-[52px] items-center justify-center gap-2 rounded-2xl border border-dashed border-slate-300 p-4 text-[15px] font-semibold text-slate-700 transition-colors hover:border-slate-400 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+            className="flex min-h-[48px] items-center justify-center gap-2 rounded-ctl border border-dashed border-slate-300 p-4 text-[15px] font-semibold text-slate-700 transition-colors hover:border-slate-400 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
           >
             <Plus className="h-4 w-4" aria-hidden />
             Tambah kendaraan

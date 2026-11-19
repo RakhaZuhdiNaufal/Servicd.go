@@ -7,7 +7,7 @@ export function OptionListSkeleton({ count = 3, tall = false }: { count?: number
       {Array.from({ length: count }).map((_, i) => (
         <div
           key={i}
-          className="flex items-start gap-3 rounded-2xl border border-slate-200 p-4 dark:border-slate-800 sm:p-5"
+          className="flex items-start gap-3 rounded-ctl border border-slate-200 p-4 dark:border-slate-800 sm:p-5"
         >
           <SkeletonBlock className="h-5 w-5 shrink-0 rounded-full" />
           <div className="flex-1 space-y-2">

@@ -225,7 +225,7 @@ export function SupportChatDrawer({ isOpen, onClose, userEmail, chat, loginHref 
         {/* Percakapan dengan CS */}
         <div ref={logRef} className="flex-1 overflow-y-auto p-4" role="log" aria-live="polite" aria-label="Percakapan dengan CS">
           {isGuest && (
-            <div className="space-y-3 rounded-2xl border border-dashed border-slate-300 p-5 text-center dark:border-slate-700">
+            <div className="space-y-3 rounded-ctl border border-dashed border-slate-300 p-5 text-center dark:border-slate-700">
               <p className="font-semibold text-slate-900 dark:text-white">Chat dengan CS butuh akun</p>
               <p className="text-sm text-slate-600 dark:text-slate-400">
                 Supaya CS bisa melihat booking dan kendaraanmu, masuk dulu. Riwayat chat tersimpan di akunmu.
@@ -243,8 +243,8 @@ export function SupportChatDrawer({ isOpen, onClose, userEmail, chat, loginHref 
 
           {chat && chat.loading && messages.length === 0 && (
             <div className="space-y-3" aria-busy>
-              <div className="h-12 w-2/3 rounded-2xl shimmer" />
-              <div className="ml-auto h-10 w-1/2 rounded-2xl shimmer" />
+              <div className="h-12 w-2/3 rounded-ctl shimmer" />
+              <div className="ml-auto h-10 w-1/2 rounded-ctl shimmer" />
             </div>
           )}
 
@@ -300,7 +300,7 @@ export function SupportChatDrawer({ isOpen, onClose, userEmail, chat, loginHref 
                     <div className={clsx('flex flex-col gap-1', mine ? 'items-end' : 'items-start')}>
                       <div
                         className={clsx(
-                          'max-w-[85%] whitespace-pre-wrap break-words rounded-2xl px-4 py-2.5 text-sm leading-relaxed',
+                          'max-w-[85%] whitespace-pre-wrap break-words rounded-ctl px-4 py-2.5 text-sm leading-relaxed',
                           mine
                             ? 'bg-primary-600 text-white'
                             : 'border border-slate-200 bg-slate-100 text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100'

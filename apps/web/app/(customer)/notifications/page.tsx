@@ -96,7 +96,7 @@ export default function NotificationsPage() {
     <div className="space-y-8 sm:space-y-10">
       <div className="flex flex-col gap-5 pt-2 sm:flex-row sm:items-end sm:justify-between sm:pt-4">
         <div className="max-w-2xl space-y-2">
-          <h1 className="text-[30px] sm:text-[40px] font-extrabold leading-[1.1] tracking-[-0.015em] text-slate-900 dark:text-white">
+          <h1 className="text-[30px] sm:text-[38px] font-bold leading-[1.1] tracking-[-0.015em] text-slate-900 dark:text-white">
             Notifikasi
           </h1>
           <p className="text-[17px] leading-relaxed text-slate-600 dark:text-slate-400">
@@ -256,10 +256,10 @@ export default function NotificationsPage() {
         {/* Tips perawatan: konten edukasi statis, panel gelap sebagai jeda ritme halaman */}
         <aside
           aria-labelledby="tips-heading"
-          className="rounded-[28px] bg-slate-900 p-6 text-white sm:p-8 lg:sticky lg:top-24 dark:bg-slate-950 dark:ring-1 dark:ring-slate-800"
+          className="rounded-[20px] bg-slate-900 p-6 text-white sm:p-8 lg:sticky lg:top-24 dark:bg-slate-950 dark:ring-1 dark:ring-slate-800"
         >
           <div className="space-y-1.5">
-            <h2 id="tips-heading" className="text-[24px] font-extrabold leading-[1.15] tracking-[-0.015em]">
+            <h2 id="tips-heading" className="text-[24px] font-bold leading-[1.15] tracking-[-0.015em]">
               Tips perawatan
             </h2>
             <p className="text-[15px] text-slate-300">Hal kecil yang bisa kamu cek sendiri di rumah.</p>

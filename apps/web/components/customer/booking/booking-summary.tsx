@@ -138,7 +138,7 @@ export function ConfirmButton({
   compact = false,
   onDark = false
 }: Omit<ActionProps, 'missingHint'> & { className?: string; compact?: boolean; onDark?: boolean }) {
-  const size = compact ? 'min-h-[48px] px-4 text-[15px]' : 'min-h-[52px] px-6 text-[17px]';
+  const size = compact ? 'min-h-[48px] px-4 text-[15px]' : 'min-h-[48px] px-6 text-[17px]';
   if (isGuest) {
     return (
       <Link
@@ -275,7 +275,7 @@ function CostBlock({
         </dl>
       )}
       <p className="text-sm font-semibold text-slate-300">Estimasi biaya</p>
-      <p className="text-[32px] font-extrabold leading-tight tracking-[-0.015em] text-white">{formatRp(finalCost)}</p>
+      <p className="text-[32px] font-bold leading-tight tracking-[-0.015em] text-white">{formatRp(finalCost)}</p>
       <p className="text-[13px] leading-relaxed text-slate-300">
         {totalDuration > 0 ? `Perkiraan pengerjaan ${formatDuration(totalDuration)}. ` : ''}
         Biaya akhir bisa berubah setelah mekanik memeriksa kendaraan.
@@ -296,7 +296,7 @@ export function BookingSummary(props: SummaryData & ActionProps & { promo: Promo
       className="sticky top-24 overflow-hidden rounded-[20px] border border-slate-200 bg-white shadow-[0_24px_48px_-24px_rgba(15,23,42,0.25)] dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/40"
     >
       <div className="space-y-5 p-6">
-        <h2 className="text-[24px] font-extrabold tracking-[-0.01em] text-slate-900 dark:text-white">Ringkasan</h2>
+        <h2 className="text-[24px] font-bold tracking-[-0.01em] text-slate-900 dark:text-white">Ringkasan</h2>
         <SummaryDetails {...props} />
         <div className="border-t border-slate-200 pt-5 dark:border-slate-800">
           <PromoField {...promo} idPrefix="promo-desktop" />
@@ -336,7 +336,7 @@ export function MobileBookingBar(props: SummaryData & ActionProps) {
             Estimasi{activeServicesList.length > 0 ? `, ${activeServicesList.length} layanan` : ''}
             {appliedPromo ? `, diskon ${appliedPromo.discount_percent}%` : ''}
           </p>
-          <p className="truncate text-xl font-extrabold tracking-[-0.01em] text-slate-900 dark:text-white">
+          <p className="truncate text-xl font-bold tracking-[-0.01em] text-slate-900 dark:text-white">
             {formatRp(finalCost)}
           </p>
           <p className="truncate text-[13px] text-slate-600 dark:text-slate-400">

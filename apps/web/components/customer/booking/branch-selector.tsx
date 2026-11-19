@@ -66,7 +66,7 @@ export function BranchSelector({
                 aria-checked={selected}
                 onClick={() => onSelectBranch(branch.id)}
                 className={clsx(
-                  'flex w-full flex-col overflow-hidden rounded-2xl border text-left transition-colors',
+                  'flex w-full flex-col overflow-hidden rounded-ctl border text-left transition-colors',
                   selected
                     ? 'border-primary-600 bg-primary-50 ring-1 ring-primary-600 dark:border-primary-500 dark:bg-primary-900/40 dark:ring-primary-500'
                     : 'border-slate-200 bg-white hover:border-slate-400 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-slate-500'
@@ -78,7 +78,7 @@ export function BranchSelector({
                 <span className="flex items-start gap-3 p-4 sm:p-5">
                   <SelectIndicator selected={selected} />
                   <span className="min-w-0 flex-1 space-y-1">
-                    <span className="block text-[17px] font-bold text-slate-900 dark:text-white">
+                    <span className="block text-[15px] font-semibold text-slate-900 dark:text-white">
                       {shortBranchName(branch.name)}
                     </span>
                     <span className="line-clamp-2 block text-sm text-slate-600 dark:text-slate-400">{branch.address}</span>
