@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { prisma, BookingStatus } from '@servicego/database';
-import { apiSuccess, apiError } from '@/lib/response';
+import { apiSuccess, apiError, apiCatch } from '@/lib/response';
 import { getAuthenticatedUser } from '@/lib/auth';
 
 export async function GET(
@@ -96,6 +96,6 @@ export async function GET(
       next_tier_progress: nextTierProgress
     }, 'Data loyalty pelanggan berhasil diambil');
   } catch (error: any) {
-    return apiError(error.message || 'Gagal mengambil data loyalty pelanggan', 500);
+    return apiCatch(error, 'Gagal mengambil data loyalty pelanggan');
   }
 }

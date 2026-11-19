@@ -9,14 +9,18 @@ export function formatRp(value: number | string | null | undefined): string {
   }).format(Number.isFinite(n) ? n : 0);
 }
 
+// Jadwal bengkel itu WIB: tampilkan dalam WIB apa pun zona perangkat (WITA/WIT/luar negeri).
 export function formatDate(iso: string | Date, opts?: Intl.DateTimeFormatOptions): string {
   const d = typeof iso === 'string' ? new Date(iso) : iso;
-  return d.toLocaleDateString('id-ID', opts ?? { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+  return d.toLocaleDateString('id-ID', {
+    timeZone: 'Asia/Jakarta',
+    ...(opts ?? { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
+  });
 }
 
 export function formatTime(iso: string | Date): string {
   const d = typeof iso === 'string' ? new Date(iso) : iso;
-  return d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit' });
 }
 
 // Waktu dalam WIB

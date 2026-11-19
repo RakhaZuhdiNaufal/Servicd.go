@@ -14,7 +14,7 @@ import { ErrorState, SkeletonBlock } from '@/components/customer/states';
 import { bookingCode, formatDate, formatRp, formatTime } from '@/lib/format';
 import { WorkshopFront } from '@/components/illustrations/workshop';
 
-type BookingStatus = 'menunggu' | 'diproses' | 'selesai' | 'dibatalkan';
+type BookingStatus = 'menunggu' | 'dikonfirmasi' | 'diproses' | 'selesai' | 'dibatalkan';
 
 // Bentuk data dari GET /api/v1/bookings/[id].
 interface Booking {
@@ -35,12 +35,14 @@ interface Booking {
 
 const PROGRESS: Array<{ status: BookingStatus; label: string }> = [
   { status: 'menunggu', label: 'Diterima' },
+  { status: 'dikonfirmasi', label: 'Dikonfirmasi' },
   { status: 'diproses', label: 'Dikerjakan' },
   { status: 'selesai', label: 'Siap diambil' }
 ];
 
 const HISTORY_LABEL: Record<BookingStatus, string> = {
   menunggu: 'Booking dibuat',
+  dikonfirmasi: 'Dikonfirmasi bengkel',
   diproses: 'Mulai dikerjakan',
   selesai: 'Selesai, siap diambil',
   dibatalkan: 'Booking dibatalkan'
@@ -48,6 +50,7 @@ const HISTORY_LABEL: Record<BookingStatus, string> = {
 
 const HISTORY_DOT: Record<BookingStatus, string> = {
   menunggu: 'bg-amber-500',
+  dikonfirmasi: 'bg-sky-500',
   diproses: 'bg-blue-600',
   selesai: 'bg-green-600',
   dibatalkan: 'bg-red-600'
@@ -74,6 +77,8 @@ function headline(b: Booking) {
   switch (b.status) {
     case 'menunggu':
       return `Booking kamu menunggu konfirmasi bengkel`;
+    case 'dikonfirmasi':
+      return `Booking kamu sudah dikonfirmasi${where}`;
     case 'diproses':
       return `${kind} kamu sedang dikerjakan${where}`;
     case 'selesai':
@@ -88,7 +93,9 @@ function nextStep(b: Booking): string {
   const where = b.branch ? b.branch.name : 'bengkel';
   switch (b.status) {
     case 'menunggu':
-      return `Datang ke ${where} pada ${when}. Status di halaman ini berubah otomatis saat bengkel mulai mengerjakan.`;
+      return `Bengkel akan mengonfirmasi jadwalmu (${when}). Status di halaman ini berubah otomatis.`;
+    case 'dikonfirmasi':
+      return `Datang ke ${where} pada ${when}. Status berubah otomatis saat mekanik mulai mengerjakan.`;
     case 'diproses':
       return 'Mekanik sedang bekerja. Halaman ini diperbarui otomatis begitu servis selesai.';
     case 'selesai':
@@ -232,7 +239,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     // Cadangan kalau Realtime tidak tersambung: cek ulang tiap 30 detik selama booking masih berjalan.
     refetchInterval: (q) => {
       const s = q.state.data?.status;
-      return s === 'menunggu' || s === 'diproses' ? 30_000 : false;
+      return s === 'menunggu' || s === 'dikonfirmasi' || s === 'diproses' ? 30_000 : false;
     }
   });
 
@@ -309,7 +316,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
             </div>
 
             {!cancelled && (
-              <ol className="grid max-w-2xl grid-cols-3 gap-2.5 pt-2" aria-label="Tahap servis">
+              <ol className="grid max-w-2xl grid-cols-4 gap-2.5 pt-2" aria-label="Tahap servis">
                 {PROGRESS.map((step, i) => {
                   const done = i <= currentIdx;
                   const now = i === currentIdx;
@@ -365,7 +372,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                 Buat booking baru
               </Link>
             )}
-            {(booking.status === 'menunggu' || booking.status === 'diproses') && tel && (
+            {(booking.status === 'menunggu' || booking.status === 'dikonfirmasi' || booking.status === 'diproses') && tel && (
               <a
                 href={`tel:${tel}`}
                 className="inline-flex min-h-[52px] shrink-0 items-center justify-center gap-2 self-start rounded-ctl border border-slate-600 px-6 text-[17px] font-semibold text-white transition-colors hover:bg-slate-800 sm:self-auto"

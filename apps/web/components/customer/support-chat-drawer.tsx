@@ -13,7 +13,7 @@ const QUICK_ANSWERS = [
     id: 'faq-booking',
     question: 'Bagaimana cara booking servis?',
     answer:
-      'Tekan tombol Booking servis, lalu isi 4 langkah: kendaraan, layanan, bengkel, dan jadwal. Untuk konfirmasi booking kamu perlu masuk ke akun.'
+      'Tekan tombol Booking servis, lalu pilih kendaraan, layanan, bengkel (bila ada lebih dari satu), dan jadwal. Untuk konfirmasi booking kamu perlu masuk ke akun.'
   },
   {
     id: 'faq-jam',
@@ -310,7 +310,7 @@ export function SupportChatDrawer({ isOpen, onClose, userEmail, chat, loginHref 
                         {m.message}
                       </div>
                       <span className="px-1 text-xs text-slate-600 dark:text-slate-400">
-                        {mine ? 'Kamu' : 'CS ServiceGo'}, {formatTimeWIB(m.created_at)}
+                        {mine ? 'Kamu' : m.sender_type === 'bot' ? 'Pesan otomatis' : 'CS ServiceGo'}, {formatTimeWIB(m.created_at)}
                       </span>
                     </div>
                   </li>

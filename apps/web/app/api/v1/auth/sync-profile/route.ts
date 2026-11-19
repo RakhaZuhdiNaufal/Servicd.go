@@ -1,8 +1,32 @@
 import { NextRequest } from 'next/server';
 import { prisma, UserRole } from '@servicego/database';
 import { syncProfileSchema } from '@servicego/shared';
-import { apiSuccess, apiError } from '@/lib/response';
+import { apiSuccess, apiError, apiCatch } from '@/lib/response';
 import { getSupabaseAdmin } from '@/lib/supabase';
+
+/**
+ * Ambil alih profil walk-in ber-email sama. Aman hanya bila:
+ * - email akun yang login sudah terverifikasi (kalau tidak, siapa pun bisa daftar pakai email orang
+ *   dan mewarisi riwayat servis + kendaraannya), dan
+ * - profil itu memang walk-in: auth_user_id-nya TIDAK ada di Supabase Auth (404 yang pasti,
+ *   bukan sekadar error jaringan).
+ */
+async function claimWalkInProfile(authId: string, email: string) {
+  const auth = getSupabaseAdmin().auth.admin;
+  const { data: me } = await auth.getUserById(authId);
+  if (!me?.user?.email_confirmed_at) return;
+
+  const candidates = await prisma.profile.findMany({
+    where: { email: { equals: email, mode: 'insensitive' }, role: UserRole.customer }
+  });
+  for (const c of candidates) {
+    const { error } = await auth.getUserById(c.auth_user_id);
+    if (error?.status === 404) {
+      await prisma.profile.update({ where: { id: c.id }, data: { auth_user_id: authId } });
+      return;
+    }
+  }
+}
 
 /**
  * Sinkronkan profil untuk user yang sedang login.
@@ -28,6 +52,13 @@ export async function POST(request: NextRequest) {
       } catch {
         return apiError('Format body tidak valid', 400);
       }
+    }
+
+    // Pelanggan walk-in (dibuat admin) yang kemudian daftar sendiri: sambungkan ke profil lama,
+    // jangan buat profil kedua dengan email yang sama.
+    if (!(await prisma.profile.findUnique({ where: { auth_user_id: authId }, select: { id: true } }))) {
+      // Tidak fatal: kalau gagal, profil baru dibuat seperti biasa dan login tetap jalan.
+      await claimWalkInProfile(authId, email).catch((e) => console.error('[sync-profile] klaim walk-in gagal:', e));
     }
 
     let profile;
@@ -94,6 +125,6 @@ export async function POST(request: NextRequest) {
 
     return apiSuccess(profile, 'Profil berhasil disinkronisasi', 200);
   } catch (error: any) {
-    return apiError(error.message || 'Gagal menyinkronkan profil', 500);
+    return apiCatch(error, 'Gagal menyinkronkan profil');
   }
 }

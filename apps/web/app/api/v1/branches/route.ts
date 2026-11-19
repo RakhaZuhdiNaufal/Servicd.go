@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { prisma, BookingStatus } from '@servicego/database';
-import { apiSuccess, apiError } from '@/lib/response';
+import { apiSuccess, apiError, apiCatch } from '@/lib/response';
 import { OPERATING_SLOTS, todayWIB, wibDayRange } from '@/lib/wib';
 
 export async function GET(request: NextRequest) {
@@ -60,6 +60,6 @@ export async function GET(request: NextRequest) {
 
     return apiSuccess(enrichedBranches, 'Daftar cabang bengkel berhasil diambil');
   } catch (error: any) {
-    return apiError(error.message || 'Gagal mengambil data cabang bengkel', 500);
+    return apiCatch(error, 'Gagal mengambil data cabang bengkel');
   }
 }

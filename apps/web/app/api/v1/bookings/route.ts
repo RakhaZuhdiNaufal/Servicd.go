@@ -1,9 +1,10 @@
 import { NextRequest } from 'next/server';
 import { prisma, BookingStatus } from '@servicego/database';
 import { createBookingSchema, findActivePromo, promoDiscount } from '@servicego/shared';
-import { apiSuccess, apiError } from '@/lib/response';
+import { apiSuccess, apiError, apiCatch, HttpError } from '@/lib/response';
 import { getAuthenticatedUser } from '@/lib/auth';
-import { OPERATING_SLOTS, toWIBParts } from '@/lib/wib';
+import { OPERATING_SLOTS, toWIBParts, wibDayRange } from '@/lib/wib';
+import { bookingDuration, remainingCapacity } from '@/lib/capacity';
 
 export async function GET(request: NextRequest) {
   try {
@@ -42,7 +43,7 @@ export async function GET(request: NextRequest) {
 
     return apiSuccess(bookings, 'Riwayat booking berhasil diambil');
   } catch (error: any) {
-    return apiError(error.message || 'Gagal mengambil riwayat booking', 500);
+    return apiCatch(error, 'Gagal mengambil riwayat booking');
   }
 }
 
@@ -122,7 +123,7 @@ export async function POST(request: NextRequest) {
     const scheduledDate = new Date(scheduled_at);
 
     // Jadwal harus jatuh tepat di salah satu jam slot operasional (WIB) dan belum lewat.
-    const { time: wibTime } = toWIBParts(scheduledDate);
+    const { date: wibDate, time: wibTime } = toWIBParts(scheduledDate);
     if (!OPERATING_SLOTS.includes(wibTime)) {
       return apiError(`Jam ${wibTime} WIB bukan jam slot bengkel. Pilih salah satu: ${OPERATING_SLOTS.join(', ')}`, 422);
     }
@@ -130,35 +131,38 @@ export async function POST(request: NextRequest) {
       return apiError('Jadwal yang dipilih sudah lewat. Pilih tanggal atau jam lain.', 422);
     }
 
-    // Hitung durasi dinamis berdasarkan layanan yang dipilih: window = scheduled_at ± (duration / 2)
-    const totalDurationMinutes = services.reduce(
-      (sum, s) => sum + (s.duration_minutes || 30),
-      0
-    );
-    const durationMinutes = Math.max(30, totalDurationMinutes);
-    const halfDurationMs = Math.round((durationMinutes / 2) * 60 * 1000);
+    // Durasi booking baru = total durasi layanan (rumus sama dengan available-slots).
+    const durationMinutes = bookingDuration(services.map((s) => s.duration_minutes));
 
     // 4. Jalankan Transaksi Database Atomic (Cek bentrok + Insert Booking + Insert BookingService + Insert History)
     const result = await prisma.$transaction(async (tx) => {
-      // Cek jumlah booking aktif pada slot waktu tersebut dengan window dinamis
-      const timeWindowStart = new Date(scheduledDate.getTime() - halfDurationMs);
-      const timeWindowEnd = new Date(scheduledDate.getTime() + halfDurationMs);
+      // Kunci per cabang + tanggal WIB. Tanpa ini, dua request bersamaan sama-sama melihat
+      // "masih ada kapasitas" (READ COMMITTED) lalu keduanya insert = overbooking.
+      // Lock dilepas otomatis saat transaksi commit/rollback. ponytail: kunci satu hari per cabang
+      // (bukan per slot) karena window durasi bisa melintasi slot; cukup untuk volume bengkel.
+      // $executeRaw (bukan $queryRaw): pg_advisory_xact_lock mengembalikan void yang tidak bisa dibaca Prisma.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`booking:${targetBranchId}:${wibDate}`}))`;
 
-      const bookedCount = await tx.booking.count({
+      // Puncak booking yang berjalan bersamaan selama booking baru, dari booking aktif hari itu.
+      const { start: dayStart, end: dayEnd } = wibDayRange(wibDate);
+      const sameDay = await tx.booking.findMany({
         where: {
           branch_id: targetBranchId,
-          scheduled_at: {
-            gte: timeWindowStart,
-            lte: timeWindowEnd
-          },
-          status: {
-            not: BookingStatus.dibatalkan
-          }
+          scheduled_at: { gte: dayStart, lte: dayEnd },
+          status: { not: BookingStatus.dibatalkan }
+        },
+        select: {
+          scheduled_at: true,
+          booking_services: { select: { service: { select: { duration_minutes: true } } } }
         }
       });
+      const intervals = sameDay.map((b) => ({
+        start: b.scheduled_at,
+        durationMinutes: bookingDuration(b.booking_services.map((bs) => bs.service.duration_minutes))
+      }));
 
-      if (bookedCount >= branch.capacity_per_slot) {
-        throw new Error('Slot waktu yang dipilih sudah penuh, silakan pilih jam atau tanggal lain');
+      if (remainingCapacity(intervals, scheduledDate, durationMinutes, branch.capacity_per_slot) === 0) {
+        throw new HttpError('Slot waktu yang dipilih sudah penuh, silakan pilih jam atau tanggal lain', 409);
       }
 
       // Buat row booking
@@ -214,6 +218,6 @@ export async function POST(request: NextRequest) {
 
     return apiSuccess(completeBooking, 'Booking berhasil dibuat', 201);
   } catch (error: any) {
-    return apiError(error.message || 'Gagal membuat booking', 400);
+    return apiCatch(error, 'Gagal membuat booking');
   }
 }

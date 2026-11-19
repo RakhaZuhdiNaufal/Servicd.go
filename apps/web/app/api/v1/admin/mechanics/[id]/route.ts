@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@servicego/database';
-import { apiSuccess, apiError } from '@/lib/response';
+import { apiSuccess, apiError, apiCatch } from '@/lib/response';
 import { z } from 'zod';
 
 const updateMechanicSchema = z.object({
@@ -40,7 +40,7 @@ export async function PUT(
 
     return apiSuccess(updated, 'Data mekanik berhasil diperbarui');
   } catch (error: any) {
-    return apiError(error.message || 'Gagal memperbarui data mekanik', 500);
+    return apiCatch(error, 'Gagal memperbarui data mekanik');
   }
 }
 
@@ -79,6 +79,6 @@ export async function DELETE(
 
     return apiSuccess(null, 'Mekanik berhasil dihapus');
   } catch (error: any) {
-    return apiError(error.message || 'Gagal menghapus mekanik', 500);
+    return apiCatch(error, 'Gagal menghapus mekanik');
   }
 }

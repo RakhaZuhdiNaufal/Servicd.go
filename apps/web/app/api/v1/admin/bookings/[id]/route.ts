@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@servicego/database';
-import { apiSuccess, apiError } from '@/lib/response';
+import { apiSuccess, apiError, apiCatch } from '@/lib/response';
 import { getAuthenticatedUser } from '@/lib/auth';
 
 // GET /api/v1/admin/bookings/:id
@@ -99,6 +99,6 @@ export async function GET(
 
     return apiSuccess(booking, 'Detail booking berhasil diambil');
   } catch (error: any) {
-    return apiError(error.message || 'Gagal mengambil detail booking', 500);
+    return apiCatch(error, 'Gagal mengambil detail booking');
   }
 }

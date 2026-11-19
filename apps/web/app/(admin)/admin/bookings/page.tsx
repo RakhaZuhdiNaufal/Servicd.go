@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, type DropResult } from '@hello-pangea/dnd';
 import { clsx } from 'clsx';
+import { BOOKING_STATUS_TRANSITIONS, bookingStatusBlockReason, isScheduleDayReached } from '@servicego/shared';
 import { fetcher } from '@/lib/fetcher';
 import { supabase } from '@/lib/supabase-client';
 import { bookingCode, formatRp, shortBranchName } from '@/lib/format';
@@ -31,7 +32,7 @@ import { EmptyState, ErrorState, SkeletonBlock } from '@/components/customer/sta
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet';
 import { adminDate, adminSchedule, adminTime, toNumber } from '@/components/admin/format';
 
-type BookingStatus = 'menunggu' | 'diproses' | 'selesai' | 'dibatalkan';
+type BookingStatus = 'menunggu' | 'dikonfirmasi' | 'diproses' | 'selesai' | 'dibatalkan';
 
 // Bentuk data dari GET /api/v1/admin/bookings (Prisma: Decimal dikirim sebagai string)
 interface Booking {
@@ -77,6 +78,7 @@ interface Mechanic {
 
 const STATUSES: Array<{ id: BookingStatus; label: string }> = [
   { id: 'menunggu', label: 'Menunggu' },
+  { id: 'dikonfirmasi', label: 'Dikonfirmasi' },
   { id: 'diproses', label: 'Diproses' },
   { id: 'selesai', label: 'Selesai' },
   { id: 'dibatalkan', label: 'Dibatalkan' }
@@ -84,6 +86,7 @@ const STATUSES: Array<{ id: BookingStatus; label: string }> = [
 const KANBAN_COLS = STATUSES.filter((s) => s.id !== 'dibatalkan');
 const STATUS_DOT: Record<BookingStatus, string> = {
   menunggu: 'bg-amber-500',
+  dikonfirmasi: 'bg-sky-500',
   diproses: 'bg-primary-600',
   selesai: 'bg-green-600',
   dibatalkan: 'bg-red-600'
@@ -218,7 +221,8 @@ function BookingsPageContent() {
 
   // Daftar mekanik aktif untuk penugasan
   const mechanicsQuery = useQuery<Mechanic[]>({
-    queryKey: ['admin-mechanics'],
+    // Key beda dari halaman Mekanik (yang memuat semua, termasuk nonaktif); prefix sama agar invalidasi tetap kena.
+    queryKey: ['admin-mechanics', 'active'],
     queryFn: () => fetcher('/admin/mechanics?is_active=true')
   });
   const mechanics = mechanicsQuery.data ?? [];
@@ -253,6 +257,11 @@ function BookingsPageContent() {
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
 
   async function handleUploadPhoto(bookingId: string, file: File) {
+    // Batas sama dengan server (photos/route.ts), supaya admin tidak menunggu upload yang pasti ditolak.
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('Ukuran foto maksimal 2 MB.');
+      return;
+    }
     try {
       setIsUploadingPhoto(true);
       const formData = new FormData();
@@ -270,7 +279,8 @@ function BookingsPageContent() {
         headers,
         body: formData
       });
-      const json = await res.json();
+      // Platform bisa membalas non-JSON (misal 413 file terlalu besar); jangan tampilkan pesan parser.
+      const json = await res.json().catch(() => ({ message: `Gagal mengunggah foto (kode ${res.status}).` }));
       if (!res.ok) throw new Error(json.message || 'Gagal mengunggah foto');
       toast.success('Foto kondisi kendaraan berhasil diunggah');
       qc.invalidateQueries({ queryKey: ['admin-bookings'] });
@@ -289,8 +299,23 @@ function BookingsPageContent() {
     const newStatus = result.destination.droppableId as BookingStatus;
     const bookingId = result.draggableId;
     const booking = bookings.find((b) => b.id === bookingId);
-    if (!booking || booking.status === newStatus) return;
-    statusMutation.mutate({ id: bookingId, status: newStatus });
+    if (!booking || booking.status === newStatus || statusMutation.isPending) return;
+    const reason = bookingStatusBlockReason(booking.status, newStatus, booking.scheduled_at);
+    if (reason) {
+      toast.error(reason);
+      return;
+    }
+    changeStatus(booking, newStatus);
+  }
+
+  // Semua perubahan status lewat sini: pembatalan langsung mengirim notifikasi ke pelanggan
+  // dan tidak bisa dibatalkan, jadi minta konfirmasi dulu.
+  function changeStatus(b: { id: string; status: BookingStatus; scheduled_at: string }, to: BookingStatus, note?: string) {
+    if (bookingStatusBlockReason(b.status, to, b.scheduled_at)) return;
+    if (to === 'dibatalkan' && !window.confirm('Batalkan booking ini? Pelanggan langsung diberi notifikasi dan status ini final.')) {
+      return;
+    }
+    statusMutation.mutate({ id: b.id, status: to, note });
   }
 
   const from = data && data.meta.total > 0 ? (data.meta.page - 1) * data.meta.limit + 1 : 0;
@@ -530,8 +555,15 @@ function BookingsPageContent() {
           <p className="text-[13px] text-slate-600 dark:text-slate-400">
             Geser kartu ke kolom lain untuk mengubah status (keyboard: Tab ke kartu, Spasi untuk mengangkat, panah untuk memindah, Spasi lagi untuk menaruh). Enter membuka detail. Booking dibatalkan hanya tampil di Tabel.
           </p>
+          {/* shortcut: kanban memakai data halaman tabel (maks 50); upgrade = endpoint hitungan per status di server. */}
+          {data.meta.total_pages > 1 && (
+            <p role="note" className="rounded-ctl border border-amber-200 bg-amber-50 px-3 py-2 text-[13px] text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+              Kanban hanya menampilkan halaman {page} ({bookings.length} dari {data.meta.total.toLocaleString('id-ID')} booking).
+              Angka di tiap kolom dihitung dari halaman ini. Pakai filter tanggal atau status untuk mempersempit.
+            </p>
+          )}
           <DragDropContext onDragEnd={onDragEnd}>
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               {KANBAN_COLS.map((col) => {
                 const colBookings = bookings.filter((b) => b.status === col.id);
                 return (
@@ -754,22 +786,18 @@ function BookingsPageContent() {
               {/* Ubah status */}
               <section className="space-y-3 px-5 py-4">
                 <h3 className={sectionTitle} id="status-group">Ubah status</h3>
-                <div role="group" aria-labelledby="status-group" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <div role="group" aria-labelledby="status-group" className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                   {STATUSES.map((s) => {
                     const current = detailBooking.status === s.id;
+                    const reason = current ? null : bookingStatusBlockReason(detailBooking.status, s.id, detailBooking.scheduled_at);
                     return (
                       <button
                         key={s.id}
                         type="button"
                         aria-pressed={current}
-                        disabled={current || statusMutation.isPending}
-                        onClick={() =>
-                          statusMutation.mutate({
-                            id: detailBooking.id,
-                            status: s.id,
-                            note: statusNote.trim() || undefined
-                          })
-                        }
+                        disabled={current || !!reason || statusMutation.isPending}
+                        title={reason ?? undefined}
+                        onClick={() => changeStatus(detailBooking, s.id, statusNote.trim() || undefined)}
                         className={clsx(
                           'inline-flex h-11 items-center justify-center gap-2 rounded-ctl border px-2 text-[13px] font-semibold transition-colors',
                           current
@@ -783,6 +811,11 @@ function BookingsPageContent() {
                     );
                   })}
                 </div>
+                {BOOKING_STATUS_TRANSITIONS[detailBooking.status].length === 0 ? (
+                  <p className="text-[13px] text-slate-600 dark:text-slate-400">Status booking ini sudah final dan tidak bisa diubah lagi.</p>
+                ) : detailBooking.status === 'dikonfirmasi' && !isScheduleDayReached(detailBooking.scheduled_at) ? (
+                  <p className="text-[13px] text-slate-600 dark:text-slate-400">Servis baru bisa dimulai (Diproses) pada hari jadwal booking.</p>
+                ) : null}
                 <div>
                   <label htmlFor="status-note" className={fieldLabel}>
                     Catatan untuk pelanggan (opsional)
@@ -825,7 +858,7 @@ function BookingsPageContent() {
                       id="assign-mechanic"
                       value={selectedMechanicId || detailBooking.mechanic?.id || ''}
                       onChange={(e) => setSelectedMechanicId(e.target.value)}
-                      disabled={mechanicsQuery.isLoading}
+                      disabled={mechanicsQuery.isLoading || BOOKING_STATUS_TRANSITIONS[detailBooking.status].length === 0}
                       className={clsx(field, 'min-w-0 flex-1')}
                     >
                       <option value="">{mechanicsQuery.isLoading ? 'Memuat mekanik...' : 'Pilih mekanik'}</option>
@@ -837,7 +870,12 @@ function BookingsPageContent() {
                     </select>
                     <button
                       type="button"
-                      disabled={!selectedMechanicId || selectedMechanicId === detailBooking.mechanic?.id || assignMutation.isPending}
+                      disabled={
+                        !selectedMechanicId ||
+                        selectedMechanicId === detailBooking.mechanic?.id ||
+                        assignMutation.isPending ||
+                        BOOKING_STATUS_TRANSITIONS[detailBooking.status].length === 0
+                      }
                       onClick={() => assignMutation.mutate({ id: detailBooking.id, mechanic_id: selectedMechanicId })}
                       className="inline-flex h-11 shrink-0 items-center rounded-ctl bg-primary-600 px-4 text-sm font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
                     >

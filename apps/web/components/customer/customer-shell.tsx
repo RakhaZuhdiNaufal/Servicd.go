@@ -128,7 +128,8 @@ export function CustomerShell({ children }: { children: React.ReactNode }) {
   // Auth guard: hanya untuk halaman non-publik
   useEffect(() => {
     if (!loading && !session && !isPublicPage) {
-      router.replace('/login');
+      // Bawa halaman asal supaya setelah login kembali ke sini (misal link /bookings/<id> yang dibagikan).
+      router.replace(`/login?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`);
     }
   }, [loading, session, router, isPublicPage]);
 

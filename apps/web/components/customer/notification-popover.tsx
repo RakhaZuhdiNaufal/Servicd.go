@@ -159,11 +159,11 @@ export function NotificationPopover() {
 
           <div className="border-t border-slate-200 px-4 py-2 dark:border-slate-800">
             <Link
-              href="/bookings"
+              href="/notifications"
               onClick={() => setIsOpen(false)}
               className="flex min-h-[40px] items-center text-sm font-semibold text-primary-700 hover:underline dark:text-primary-100"
             >
-              Lihat riwayat booking
+              Lihat semua notifikasi
             </Link>
           </div>
         </div>

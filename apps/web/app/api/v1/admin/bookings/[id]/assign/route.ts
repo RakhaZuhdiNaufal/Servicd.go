@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { prisma, BookingStatus } from '@servicego/database';
 import { assignMechanicSchema } from '@servicego/shared';
-import { apiSuccess, apiError } from '@/lib/response';
+import { apiSuccess, apiError, apiCatch } from '@/lib/response';
 import { getAuthenticatedUser } from '@/lib/auth';
 
 export async function PATCH(
@@ -34,6 +34,10 @@ export async function PATCH(
     }
 
     const { mechanic_id } = parsed.data;
+
+    if (booking.status === BookingStatus.selesai || booking.status === BookingStatus.dibatalkan) {
+      return apiError(`Booking berstatus "${booking.status}" sudah final, mekanik tidak bisa diubah lagi.`, 409);
+    }
 
     // Verifikasi mekanik ada dan aktif
     const mechanic = await prisma.mechanic.findUnique({
@@ -73,6 +77,18 @@ export async function PATCH(
 
     // Update mekanik + catat di riwayat status dalam satu transaksi (status booking tidak berubah)
     const updated = await prisma.$transaction(async (tx) => {
+      // Data lama: booking batal yang masih memegang mekanik ini di jam yang sama ikut terkena
+      // constraint unik (mechanic_id, scheduled_at). Lepaskan dulu; booking batal tidak butuh mekanik.
+      await tx.booking.updateMany({
+        where: {
+          mechanic_id,
+          scheduled_at: booking.scheduled_at,
+          status: BookingStatus.dibatalkan,
+          id: { not: id }
+        },
+        data: { mechanic_id: null }
+      });
+
       const updatedBooking = await tx.booking.update({
         where: { id },
         data: { mechanic_id },
@@ -95,6 +111,10 @@ export async function PATCH(
 
     return apiSuccess(updated, `Mekanik ${mechanic.full_name} berhasil ditugaskan ke booking`);
   } catch (error: any) {
-    return apiError(error.message || 'Gagal menugaskan mekanik', 500);
+    // Dua admin menugaskan mekanik yang sama ke jam yang sama secara bersamaan.
+    if (error?.code === 'P2002') {
+      return apiError('Mekanik ini sudah memiliki jadwal servis aktif pada jam tersebut', 409);
+    }
+    return apiCatch(error, 'Gagal menugaskan mekanik');
   }
 }

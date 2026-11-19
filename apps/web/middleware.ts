@@ -9,6 +9,8 @@ const PUBLIC_API_ROUTES = [
   { path: '/api/v1/promos', method: 'GET' }
 ];
 
+const AUTH_CONTEXT_HEADERS = ['x-auth-id', 'x-profile-id', 'x-user-role', 'x-user-email'];
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -17,13 +19,18 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Header konteks auth hanya boleh ditulis middleware. Buang versi kiriman klien di SEMUA rute
+  // (termasuk publik) supaya route handler tidak pernah membaca identitas palsu.
+  const requestHeaders = new Headers(request.headers);
+  for (const h of AUTH_CONTEXT_HEADERS) requestHeaders.delete(h);
+
   // Cek apakah endpoint termasuk publik
   const isPublic = PUBLIC_API_ROUTES.some(
     (route) => route.path === pathname && route.method === request.method
   );
 
   if (isPublic) {
-    return NextResponse.next();
+    return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
   const authHeader = request.headers.get('Authorization');
@@ -68,35 +75,43 @@ export async function middleware(request: NextRequest) {
       );
     }
 
-    // Role & profile_id HANYA dari app_metadata (diisi server lewat service role).
-    // user_metadata bisa diubah sendiri oleh pengguna dari browser (supabase.auth.updateUser),
-    // jadi tidak boleh dipakai untuk hak akses.
-    let role = (user.app_metadata?.role || '') as string;
-    let profileId = (user.app_metadata?.profile_id || '') as string;
-
-    // Jika belum ada di app_metadata, cari di tabel profiles via Supabase Admin
-    if ((!profileId || !role) && pathname !== '/api/v1/auth/sync-profile') {
-      try {
-        const adminSupabase = getSupabaseAdmin();
-        const { data: profile } = await adminSupabase
-          .from('profiles')
-          .select('id, role')
-          .eq('auth_user_id', user.id)
-          .maybeSingle();
-
-        if (profile) {
-          profileId = profile.id;
-          role = profile.role;
-        }
-      } catch {
-        // Fallback jika database belum terhubung
+    // Role & profile_id SELALU dari tabel profiles (sumber kebenaran). Jangan dari app_metadata:
+    // itu hanya salinan yang ditulis sync-profile dan tidak ikut berubah saat role diubah langsung
+    // di database, jadi admin yang sudah dicabut masih lolos. user_metadata bahkan bisa diubah
+    // pengguna sendiri. ponytail: satu query per request; bila jadi bottleneck, cache per auth id ~30 dtk.
+    let role = '';
+    let profileId = '';
+    let lookupFailed = false;
+    try {
+      const { data: profile, error: profileError } = await getSupabaseAdmin()
+        .from('profiles')
+        .select('id, role')
+        .eq('auth_user_id', user.id)
+        .maybeSingle();
+      if (profileError) throw profileError;
+      if (profile) {
+        profileId = profile.id;
+        role = profile.role;
       }
+    } catch {
+      lookupFailed = true;
     }
 
+    const isAdminRoute = pathname.startsWith('/api/v1/admin');
+
+    // Fail closed: kalau role tidak bisa dipastikan, jangan beri akses admin.
+    if (isAdminRoute && lookupFailed) {
+      return NextResponse.json(
+        { success: false, data: null, message: 'Layanan verifikasi akses sedang bermasalah. Coba lagi sebentar lagi.' },
+        { status: 503 }
+      );
+    }
+
+    // Belum punya profil (baru daftar) = pelanggan; profil dibuat oleh /auth/sync-profile.
     if (!role) role = 'customer';
 
     // Role-Based Access Control (RBAC) untuk endpoint admin
-    if (pathname.startsWith('/api/v1/admin')) {
+    if (isAdminRoute) {
       if (role !== 'admin') {
         return NextResponse.json(
           {
@@ -110,7 +125,6 @@ export async function middleware(request: NextRequest) {
     }
 
     // Lampirkan context terverifikasi ke headers request
-    const requestHeaders = new Headers(request.headers);
     requestHeaders.set('x-auth-id', user.id);
     requestHeaders.set('x-profile-id', profileId);
     requestHeaders.set('x-user-role', role);

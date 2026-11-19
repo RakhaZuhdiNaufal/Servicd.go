@@ -1,8 +1,9 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@servicego/database';
 import { availableSlotsQuerySchema } from '@servicego/shared';
-import { apiSuccess, apiError } from '@/lib/response';
+import { apiSuccess, apiError, apiCatch } from '@/lib/response';
 import { OPERATING_SLOTS, wibDateTime, wibDayRange } from '@/lib/wib';
+import { MIN_BOOKING_MINUTES, bookingDuration, maxConcurrent } from '@/lib/capacity';
 
 export async function GET(request: NextRequest) {
   try {
@@ -53,13 +54,19 @@ export async function GET(request: NextRequest) {
         ...(branch_id ? { branch_id } : {})
       },
       select: {
-        scheduled_at: true
+        scheduled_at: true,
+        booking_services: { select: { service: { select: { duration_minutes: true } } } }
       }
     });
 
+    const intervals = existingBookings.map((b) => ({
+      start: b.scheduled_at,
+      durationMinutes: bookingDuration(b.booking_services.map((bs) => bs.service.duration_minutes))
+    }));
+
+    // Durasi booking yang akan dibuat (total layanan terpilih). Rumus sama dengan POST /bookings.
     const durationParam = parseInt(searchParams.get('duration_minutes') || '60', 10);
-    const durationMinutes = isNaN(durationParam) || durationParam < 15 ? 60 : durationParam;
-    const halfDurationMs = Math.round((durationMinutes / 2) * 60 * 1000);
+    const durationMinutes = isNaN(durationParam) ? 60 : Math.max(MIN_BOOKING_MINUTES, durationParam);
 
     // Hitung per slot jam
     const slots = OPERATING_SLOTS.map((timeStr) => {
@@ -67,11 +74,8 @@ export async function GET(request: NextRequest) {
       const slotTime = wibDateTime(date, timeStr);
       const isPast = slotTime.getTime() <= Date.now();
 
-      // Hitung booking yang overlap dengan window slot ini: slotTime ± (duration / 2)
-      const bookedCount = existingBookings.filter((b) => {
-        const bTime = new Date(b.scheduled_at);
-        return Math.abs(bTime.getTime() - slotTime.getTime()) < halfDurationMs;
-      }).length;
+      // Puncak booking yang berjalan bersamaan selama [slot, slot + durasi).
+      const bookedCount = maxConcurrent(intervals, slotTime, durationMinutes);
 
       const remaining = isPast ? 0 : Math.max(0, capacityPerSlot - bookedCount);
 
@@ -92,6 +96,6 @@ export async function GET(request: NextRequest) {
       slots
     }, 'Informasi slot waktu tersedia berhasil diambil');
   } catch (error: any) {
-    return apiError(error.message || 'Gagal memeriksa slot waktu', 500);
+    return apiCatch(error, 'Gagal memeriksa slot waktu');
   }
 }

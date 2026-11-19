@@ -80,14 +80,17 @@ export default function AdminSupportPage() {
   const loadMessages = useCallback(async (conversationId: string) => {
     setRoomLoading(true);
     setRoomError(null);
+    // 500 pesan TERBARU (desc lalu dibalik), bukan 500 tertua.
     const { data, error } = await supabase
       .from('support_messages')
       .select('*')
       .eq('conversation_id', conversationId)
-      .order('created_at', { ascending: true })
+      .order('created_at', { ascending: false })
       .limit(500);
+    // Admin sudah pindah percakapan saat request ini masih jalan: buang hasilnya.
+    if (selectedIdRef.current !== conversationId) return;
     if (error) setRoomError(friendlySupportError(error));
-    else setMessages((data ?? []) as SupportMessage[]);
+    else setMessages(((data ?? []) as SupportMessage[]).reverse());
     setRoomLoading(false);
   }, []);
 
@@ -103,8 +106,11 @@ export default function AdminSupportPage() {
   }, [adminId, loadConversations]);
 
   useEffect(() => {
+    // Pindah percakapan: kosongkan isi & draf lama supaya balasan tidak terkirim ke pelanggan yang salah.
+    setMessages([]);
+    setReply('');
     if (!selectedId) {
-      setMessages([]);
+      setRoomLoading(false);
       return;
     }
     loadMessages(selectedId);
@@ -400,21 +406,25 @@ export default function AdminSupportPage() {
                   <p className="text-center text-sm text-slate-600 dark:text-slate-400">Belum ada pesan di percakapan ini.</p>
                 )}
                 {messages.map((m) => {
-                  const mine = m.sender_type === 'admin';
+                  // Balasan otomatis (bot) tampil di sisi CS, dengan warna redup supaya beda dari balasan admin.
+                  const bot = m.sender_type === 'bot';
+                  const mine = m.sender_type === 'admin' || bot;
                   return (
                     <div key={m.id} className={clsx('flex flex-col gap-1', mine ? 'items-end' : 'items-start')}>
                       <div
                         className={clsx(
                           'max-w-[80%] whitespace-pre-wrap break-words rounded-2xl px-3.5 py-2 text-sm',
-                          mine
-                            ? 'rounded-br-md bg-primary-600 text-white'
-                            : 'rounded-bl-md border border-slate-200 bg-white text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100'
+                          bot
+                            ? 'rounded-br-md border border-dashed border-slate-300 bg-slate-50 text-slate-700 dark:border-slate-600 dark:bg-slate-800/60 dark:text-slate-300'
+                            : mine
+                              ? 'rounded-br-md bg-primary-600 text-white'
+                              : 'rounded-bl-md border border-slate-200 bg-white text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100'
                         )}
                       >
                         {m.message}
                       </div>
                       <span className="px-1 text-xs text-slate-600 dark:text-slate-400">
-                        {mine ? 'CS' : selected.customer_name || 'Pelanggan'},{' '}
+                        {bot ? 'Pesan otomatis' : mine ? 'CS' : selected.customer_name || 'Pelanggan'},{' '}
                         {formatNotificationTime(m.created_at, { todayLabel: 'Hari ini' })}
                       </span>
                     </div>

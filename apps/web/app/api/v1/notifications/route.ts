@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@servicego/database';
-import { apiSuccess, apiError } from '@/lib/response';
+import { apiSuccess, apiError, apiCatch } from '@/lib/response';
 import { getAuthenticatedUser } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
       'Daftar notifikasi berhasil diambil'
     );
   } catch (error: any) {
-    return apiError(error.message || 'Gagal mengambil notifikasi', 500);
+    return apiCatch(error, 'Gagal mengambil notifikasi');
   }
 }
 
@@ -49,6 +49,6 @@ export async function PATCH(request: NextRequest) {
 
     return apiSuccess(null, 'Semua notifikasi berhasil ditandai sebagai dibaca');
   } catch (error: any) {
-    return apiError(error.message || 'Gagal memperbarui notifikasi', 500);
+    return apiCatch(error, 'Gagal memperbarui notifikasi');
   }
 }

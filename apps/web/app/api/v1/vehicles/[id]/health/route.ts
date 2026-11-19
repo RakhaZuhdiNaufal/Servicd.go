@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { prisma, BookingStatus } from '@servicego/database';
-import { apiSuccess, apiError } from '@/lib/response';
+import { apiSuccess, apiError, apiCatch } from '@/lib/response';
 import { getAuthenticatedUser } from '@/lib/auth';
 
 export async function GET(
@@ -98,6 +98,6 @@ export async function GET(
       indicators
     }, 'Ringkasan perawatan kendaraan berhasil diambil');
   } catch (error: any) {
-    return apiError(error.message || 'Gagal menghitung kesehatan kendaraan', 500);
+    return apiCatch(error, 'Gagal menghitung kesehatan kendaraan');
   }
 }

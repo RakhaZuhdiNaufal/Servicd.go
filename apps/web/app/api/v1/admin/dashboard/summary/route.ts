@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { prisma, BookingStatus, UserRole } from '@servicego/database';
-import { apiSuccess, apiError } from '@/lib/response';
+import { apiSuccess, apiError, apiCatch } from '@/lib/response';
 
 export async function GET(request: NextRequest) {
   try {
@@ -72,6 +72,7 @@ export async function GET(request: NextRequest) {
     // Format Booking per status
     const statusCounts: Record<string, number> = {
       menunggu: 0,
+      dikonfirmasi: 0,
       diproses: 0,
       selesai: 0,
       dibatalkan: 0
@@ -116,6 +117,6 @@ export async function GET(request: NextRequest) {
       'Ringkasan dashboard admin berhasil diambil'
     );
   } catch (error: any) {
-    return apiError(error.message || 'Gagal mengambil data ringkasan dashboard', 500);
+    return apiCatch(error, 'Gagal mengambil data ringkasan dashboard');
   }
 }

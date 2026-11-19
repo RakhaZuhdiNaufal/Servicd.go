@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@servicego/database';
-import { apiSuccess, apiError } from '@/lib/response';
+import { apiSuccess, apiError, apiCatch } from '@/lib/response';
 import { getAuthenticatedUser } from '@/lib/auth';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { z } from 'zod';
@@ -41,6 +41,7 @@ export async function GET(request: NextRequest) {
         id: true,
         status: true,
         estimated_cost: true,
+        final_cost: true,
         scheduled_at: true
       },
       orderBy: { scheduled_at: 'desc' }
@@ -51,7 +52,8 @@ export async function GET(request: NextRequest) {
 
     const totalBookings = nonCancelledBookings.length;
     const totalSpent = completedBookings.reduce(
-      (sum, b) => sum + Number(b.estimated_cost || 0),
+      // Sama dengan loyalty & dashboard: biaya akhir bila ada, kalau belum pakai estimasi.
+      (sum, b) => sum + Number(b.final_cost ?? b.estimated_cost ?? 0),
       0
     );
     const lastServiceDate = completedBookings[0]?.scheduled_at ?? null;
@@ -68,7 +70,7 @@ export async function GET(request: NextRequest) {
       'Data profil berhasil diambil'
     );
   } catch (error: any) {
-    return apiError(error.message || 'Gagal memuat profil', 500);
+    return apiCatch(error, 'Gagal memuat profil');
   }
 }
 
@@ -111,6 +113,6 @@ export async function PUT(request: NextRequest) {
 
     return apiSuccess(updated, 'Profil berhasil diperbarui');
   } catch (error: any) {
-    return apiError(error.message || 'Gagal memperbarui profil', 500);
+    return apiCatch(error, 'Gagal memperbarui profil');
   }
 }

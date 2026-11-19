@@ -166,9 +166,10 @@ export default function ProfilePage() {
   const [phoneInput, setPhoneInput] = useState('');
   const [phoneError, setPhoneError] = useState<string | null>(null);
 
+  const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [passwordError, setPasswordError] = useState<{ field: 'new' | 'confirm' | 'form'; message: string } | null>(
+  const [passwordError, setPasswordError] = useState<{ field: 'current' | 'new' | 'confirm' | 'form'; message: string } | null>(
     null
   );
   const [passwordLoading, setPasswordLoading] = useState(false);
@@ -253,6 +254,7 @@ export default function ProfilePage() {
   }
 
   function openPassword() {
+    setCurrentPassword('');
     setNewPassword('');
     setConfirmPassword('');
     setPasswordError(null);
@@ -309,6 +311,10 @@ export default function ProfilePage() {
 
   async function handleChangePassword(e: React.FormEvent) {
     e.preventDefault();
+    if (!currentPassword) {
+      setPasswordError({ field: 'current', message: 'Isi password saat ini.' });
+      return;
+    }
     if (newPassword.length < 6) {
       setPasswordError({ field: 'new', message: 'Password baru minimal 6 karakter.' });
       return;
@@ -320,10 +326,17 @@ export default function ProfilePage() {
     setPasswordError(null);
     try {
       setPasswordLoading(true);
+      // Verifikasi ulang: sesi yang terbuka di perangkat orang lain tidak cukup untuk mengambil alih akun.
+      const { error: reauthError } = await supabase.auth.signInWithPassword({ email, password: currentPassword });
+      if (reauthError) {
+        setPasswordError({ field: 'current', message: 'Password saat ini salah.' });
+        return;
+      }
       const { error } = await supabase.auth.updateUser({ password: newPassword });
       if (error) throw error;
       toast.success('Password berhasil diperbarui');
       setPasswordOpen(false);
+      setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
     } catch (err: any) {
@@ -704,6 +717,26 @@ export default function ProfilePage() {
               {passwordError.message}
             </p>
           )}
+          <div className="space-y-1.5">
+            <label htmlFor="current_password" className={labelClass}>
+              Password saat ini
+            </label>
+            <input
+              id="current_password"
+              type="password"
+              autoComplete="current-password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              aria-invalid={passwordError?.field === 'current' ? true : undefined}
+              aria-describedby={passwordError?.field === 'current' ? 'current_password-error' : undefined}
+              className={clsx(inputClass, borderFor(passwordError?.field === 'current'))}
+            />
+            {passwordError?.field === 'current' && (
+              <p id="current_password-error" className={errorTextClass}>
+                {passwordError.message}
+              </p>
+            )}
+          </div>
           <div className="space-y-1.5">
             <label htmlFor="new_password" className={labelClass}>
               Password baru

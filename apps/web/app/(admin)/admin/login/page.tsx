@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -55,7 +54,7 @@ export default function AdminLoginPage() {
     // Role dari app_metadata (diisi server). Akun pelanggan tidak diteruskan ke panel admin.
     if (data.user?.app_metadata?.role === 'customer') {
       await supabase.auth.signOut();
-      setFormError('Akun ini akun pelanggan, bukan akun admin. Pelanggan masuk lewat halaman Masuk biasa.');
+      setFormError('Akun ini tidak punya akses ke panel admin.');
       return;
     }
     router.replace('/admin/dashboard');
@@ -151,13 +150,6 @@ export default function AdminLoginPage() {
               {isSubmitting ? 'Memeriksa akun...' : 'Masuk'}
             </button>
           </form>
-
-          <p className="border-t border-slate-200 pt-4 text-sm text-slate-600 dark:border-slate-800 dark:text-slate-400">
-            Pelanggan?{' '}
-            <Link href="/login" className="font-semibold text-primary-700 hover:underline dark:text-primary-100">
-              Masuk di portal pelanggan
-            </Link>
-          </p>
         </div>
       </main>
     </div>

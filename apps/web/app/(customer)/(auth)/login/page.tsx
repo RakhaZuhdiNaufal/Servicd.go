@@ -27,7 +27,7 @@ function loginErrorMessage(message: string): string {
 }
 
 const inputClass =
-  'h-12 w-full rounded-ctl border bg-white px-4 text-base text-slate-900 placeholder:text-slate-500 transition-colors dark:bg-slate-900 dark:text-white dark:placeholder:text-slate-500';
+  'h-12 w-full rounded-ctl border bg-slate-50/60 px-4 text-base text-slate-900 placeholder:text-slate-400 transition-all focus:border-primary-600 focus:bg-white focus:outline-none focus:ring-4 focus:ring-primary-600/10 dark:bg-slate-900 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-primary-500 dark:focus:bg-slate-900';
 
 export default function CustomerLoginPage() {
   const router = useRouter();
@@ -35,15 +35,25 @@ export default function CustomerLoginPage() {
   const [formError, setFormError] = useState<string | null>(null);
   // Hanya untuk teks penjelas: datang dari form booking (?redirect=/booking/...)?
   const [fromBooking, setFromBooking] = useState(false);
-  useEffect(() => {
-    const target = new URLSearchParams(window.location.search).get('redirect');
-    setFromBooking(!!target && target.startsWith('/booking'));
-  }, []);
   const {
     register,
     handleSubmit,
+    setValue,
+    setFocus,
     formState: { errors, isSubmitting }
   } = useForm<Form>({ resolver: zodResolver(schema) });
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const target = params.get('redirect');
+    setFromBooking(!!target && target.startsWith('/booking/'));
+    // Baru daftar: email sudah diisi, kursor langsung di password.
+    const email = params.get('email');
+    if (email) {
+      setValue('email', email);
+      setFocus('password');
+    }
+  }, [setValue, setFocus]);
 
   async function onSubmit({ email, password }: Form) {
     setFormError(null);
@@ -55,7 +65,9 @@ export default function CustomerLoginPage() {
       }
       // Kembali ke halaman asal (misal form booking) kalau ada ?redirect=, hanya path internal.
       const target = new URLSearchParams(window.location.search).get('redirect');
-      const safe = target && target.startsWith('/') && !target.startsWith('//') ? target : '/';
+      // Cek origin lewat URL, bukan prefix: browser menormalkan "/\evil.com" jadi "//evil.com".
+      const dest = target ? new URL(target, window.location.origin) : null;
+      const safe = dest && dest.origin === window.location.origin ? dest.pathname + dest.search + dest.hash : '/';
       router.replace(safe);
     } catch (err: any) {
       setFormError(err?.message || 'Server belum bisa dihubungi. Coba lagi sebentar lagi.');
@@ -63,25 +75,23 @@ export default function CustomerLoginPage() {
   }
 
   return (
-    <div className="space-y-8">
-      <div className="space-y-3">
-        <h1 className="text-[30px] sm:text-[40px] font-extrabold leading-[1.1] tracking-[-0.015em] text-slate-900 dark:text-white">Masuk ke ServiceGo</h1>
-        <p className="text-[17px] leading-relaxed text-slate-600 dark:text-slate-400">
+    <div className="space-y-7">
+      <div className="space-y-2.5">
+        <h1 className="text-[32px] sm:text-[38px] font-extrabold leading-[1.12] tracking-[-0.02em] text-slate-900 dark:text-white">
+          Masuk ke ServiceGo
+        </h1>
+        <p className="text-[16px] leading-relaxed text-slate-600 dark:text-slate-400">
           {fromBooking
             ? 'Masuk dulu untuk menyelesaikan booking. Setelah masuk, kamu langsung kembali ke form booking.'
             : 'Masuk untuk booking servis dan cek status kendaraan kamu.'}
         </p>
       </div>
 
-      <form
-        onSubmit={handleSubmit(onSubmit)}
-        noValidate
-        className="space-y-5"
-      >
+      <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-5">
         {formError && (
           <div
             role="alert"
-            className="flex gap-2 rounded-ctl border border-red-200 bg-red-50 px-3.5 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200"
+            className="flex gap-2.5 rounded-ctl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200"
           >
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
             <p>{formError}</p>
@@ -89,7 +99,7 @@ export default function CustomerLoginPage() {
         )}
 
         <div className="space-y-1.5">
-          <label htmlFor="email" className="block text-[15px] font-semibold text-slate-900 dark:text-slate-100">
+          <label htmlFor="email" className="block text-sm font-semibold text-slate-800 dark:text-slate-200">
             Email
           </label>
           <input
@@ -114,7 +124,7 @@ export default function CustomerLoginPage() {
         </div>
 
         <div className="space-y-1.5">
-          <label htmlFor="password" className="block text-[15px] font-semibold text-slate-900 dark:text-slate-100">
+          <label htmlFor="password" className="block text-sm font-semibold text-slate-800 dark:text-slate-200">
             Password
           </label>
           <div className="relative">
@@ -122,6 +132,7 @@ export default function CustomerLoginPage() {
               id="password"
               type={showPw ? 'text' : 'password'}
               autoComplete="current-password"
+              placeholder="••••••••"
               aria-invalid={errors.password ? true : undefined}
               aria-describedby={errors.password ? 'password-error' : undefined}
               {...register('password')}
@@ -151,18 +162,18 @@ export default function CustomerLoginPage() {
         <button
           type="submit"
           disabled={isSubmitting}
-          className="inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-ctl bg-primary-600 text-[17px] font-bold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-70 transition-colors"
+          className="inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-ctl bg-primary-600 text-[16px] font-bold text-white shadow-sm hover:bg-primary-700 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-70 transition-all"
         >
           {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
           {isSubmitting ? 'Sedang masuk...' : 'Masuk'}
         </button>
       </form>
 
-      <p className="border-t border-slate-200 pt-6 text-[15px] text-slate-600 dark:border-slate-800 dark:text-slate-400">
+      <p className="border-t border-slate-200/80 pt-5 text-[15px] text-slate-600 dark:border-slate-800 dark:text-slate-400">
         Belum punya akun?{' '}
         <Link
           href="/register"
-          className="inline-flex min-h-[44px] items-center font-semibold text-primary-700 hover:underline dark:text-primary-100"
+          className="inline-flex min-h-[40px] items-center font-semibold text-primary-600 hover:underline dark:text-primary-400"
         >
           Daftar di sini
         </Link>

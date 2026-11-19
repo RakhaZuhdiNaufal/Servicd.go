@@ -86,10 +86,10 @@ export function useCustomerSupportChat(userId: string | null) {
           .from('support_messages')
           .select('*')
           .eq('conversation_id', conv.id)
-          .order('created_at', { ascending: true })
+          .order('created_at', { ascending: false }) // 500 terbaru, lalu dibalik ke urutan waktu
           .limit(500);
         if (msgErr) throw msgErr;
-        setMessages((msgs ?? []) as SupportMessage[]);
+        setMessages(((msgs ?? []) as SupportMessage[]).reverse());
       } else {
         setMessages([]);
       }

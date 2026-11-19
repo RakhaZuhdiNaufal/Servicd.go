@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { prisma, VehicleType } from '@servicego/database';
-import { apiSuccess, apiError } from '@/lib/response';
+import { apiSuccess, apiError, apiCatch } from '@/lib/response';
 
 export async function GET(request: NextRequest) {
   try {
@@ -95,6 +95,6 @@ export async function GET(request: NextRequest) {
       }
     }, 'Daftar semua kendaraan pelanggan berhasil diambil');
   } catch (error: any) {
-    return apiError(error.message || 'Gagal mengambil data kendaraan', 500);
+    return apiCatch(error, 'Gagal mengambil data kendaraan');
   }
 }

@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { prisma, VehicleType } from '@servicego/database';
 import { updateVehicleSchema } from '@servicego/shared';
-import { apiSuccess, apiError } from '@/lib/response';
+import { apiSuccess, apiError, apiCatch } from '@/lib/response';
 import { getAuthenticatedUser } from '@/lib/auth';
 
 export async function PUT(
@@ -61,7 +61,7 @@ export async function PUT(
 
     return apiSuccess(updated, 'Data kendaraan berhasil diperbarui');
   } catch (error: any) {
-    return apiError(error.message || 'Gagal memperbarui kendaraan', 500);
+    return apiCatch(error, 'Gagal memperbarui kendaraan');
   }
 }
 
@@ -89,12 +89,21 @@ export async function DELETE(
       return apiError('Akses ditolak: Anda bukan pemilik kendaraan ini', 403);
     }
 
+    // bookings -> vehicles memakai onDelete: Restrict: riwayat servis tidak boleh ikut hilang.
+    const bookingCount = await prisma.booking.count({ where: { vehicle_id: id } });
+    if (bookingCount > 0) {
+      return apiError(
+        `Kendaraan ini punya ${bookingCount} riwayat booking, jadi tidak bisa dihapus agar riwayat servisnya tetap tersimpan.`,
+        409
+      );
+    }
+
     await prisma.vehicle.delete({
       where: { id }
     });
 
     return apiSuccess(null, 'Kendaraan berhasil dihapus');
   } catch (error: any) {
-    return apiError(error.message || 'Gagal menghapus kendaraan', 500);
+    return apiCatch(error, 'Gagal menghapus kendaraan');
   }
 }

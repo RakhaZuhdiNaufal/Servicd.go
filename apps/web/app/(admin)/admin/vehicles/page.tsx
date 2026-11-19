@@ -23,7 +23,7 @@ import {
   theadCls
 } from '@/components/admin/resource-ui';
 
-type BookingStatus = 'menunggu' | 'diproses' | 'selesai' | 'dibatalkan';
+type BookingStatus = 'menunggu' | 'dikonfirmasi' | 'diproses' | 'selesai' | 'dibatalkan';
 type TypeFilter = '' | 'mobil' | 'motor';
 
 interface Vehicle {

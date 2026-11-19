@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { prisma, VehicleType } from '@servicego/database';
 import { createVehicleSchema } from '@servicego/shared';
-import { apiSuccess, apiError } from '@/lib/response';
+import { apiSuccess, apiError, apiCatch } from '@/lib/response';
 import { getAuthenticatedUser } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
 
     return apiSuccess(enriched, 'Daftar kendaraan berhasil diambil');
   } catch (error: any) {
-    return apiError(error.message || 'Gagal mengambil data kendaraan', 500);
+    return apiCatch(error, 'Gagal mengambil data kendaraan');
   }
 }
 
@@ -118,6 +118,6 @@ export async function POST(request: NextRequest) {
 
     return apiSuccess(vehicle, 'Kendaraan berhasil ditambahkan', 201);
   } catch (error: any) {
-    return apiError(error.message || 'Gagal menambahkan kendaraan', 500);
+    return apiCatch(error, 'Gagal menambahkan kendaraan');
   }
 }

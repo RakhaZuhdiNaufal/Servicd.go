@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { prisma, BookingStatus } from '@servicego/database';
-import { apiSuccess, apiError } from '@/lib/response';
+import { apiSuccess, apiError, apiCatch } from '@/lib/response';
 import { isIsoDate, wibDayRange } from '@/lib/wib';
 
 export async function GET(request: NextRequest) {
@@ -120,6 +120,6 @@ export async function GET(request: NextRequest) {
       'Daftar booking admin berhasil diambil'
     );
   } catch (error: any) {
-    return apiError(error.message || 'Gagal mengambil data booking', 500);
+    return apiCatch(error, 'Gagal mengambil data booking');
   }
 }

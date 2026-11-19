@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@servicego/database';
 import { updateServiceSchema } from '@servicego/shared';
-import { apiSuccess, apiError } from '@/lib/response';
+import { apiSuccess, apiError, apiCatch } from '@/lib/response';
 
 export async function PUT(
   request: NextRequest,
@@ -32,7 +32,7 @@ export async function PUT(
 
     return apiSuccess(updated, 'Layanan berhasil diperbarui');
   } catch (error: any) {
-    return apiError(error.message || 'Gagal memperbarui layanan', 500);
+    return apiCatch(error, 'Gagal memperbarui layanan');
   }
 }
 
@@ -59,6 +59,6 @@ export async function DELETE(
 
     return apiSuccess(softDeleted, 'Layanan berhasil dinonaktifkan (soft-delete)');
   } catch (error: any) {
-    return apiError(error.message || 'Gagal menonaktifkan layanan', 500);
+    return apiCatch(error, 'Gagal menonaktifkan layanan');
   }
 }

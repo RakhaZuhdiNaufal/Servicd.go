@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { prisma, BookingStatus } from '@servicego/database';
 import { createReviewSchema } from '@servicego/shared';
-import { apiSuccess, apiError } from '@/lib/response';
+import { apiSuccess, apiError, apiCatch } from '@/lib/response';
 import { getAuthenticatedUser } from '@/lib/auth';
 
 export async function POST(
@@ -56,6 +56,6 @@ export async function POST(
 
     return apiSuccess(review, 'Ulasan berhasil dikirim', 201);
   } catch (error: any) {
-    return apiError(error.message || 'Gagal mengirim ulasan', 500);
+    return apiCatch(error, 'Gagal mengirim ulasan');
   }
 }
