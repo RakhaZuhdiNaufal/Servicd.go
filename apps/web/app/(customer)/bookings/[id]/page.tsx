@@ -11,16 +11,11 @@ import { supabase } from '@/lib/supabase-client';
 import { StatusBadge } from '@/components/status-badge';
 import { Plate } from '@/components/customer/plate';
 import { ErrorState, SkeletonBlock } from '@/components/customer/states';
-import { bookingCode, formatDate, formatRp, formatTime } from '@/lib/format';
+import { bookingCode, formatDate, formatTime } from '@/lib/format';
 import { WorkshopFront } from '@/components/illustrations/workshop';
 import { btnSecondary } from '@/components/customer/ui';
-import {
-  PAYMENT_METHOD,
-  PAYMENT_STATUS,
-  PAYMENT_TYPE,
-  sudahDibayar,
-  type Payment
-} from '@/components/customer/payment';
+import { type Payment } from '@/components/customer/payment';
+import { Struk } from '@/components/customer/struk';
 
 type BookingStatus = 'menunggu' | 'dikonfirmasi' | 'diproses' | 'selesai' | 'dibatalkan';
 
@@ -132,80 +127,6 @@ function Card({ title, children, id, className }: { title: string; children: Rea
       </h2>
       {children}
     </section>
-  );
-}
-
-/**
- * Pembayaran booking. Kalau belum ada catatan pembayaran, kartunya cuma memberi tahu
- * cara bayar — struk baru muncul setelah kasir mencatat pembayaran.
- */
-function PaymentCard({ bookingId, payments, total }: { bookingId: string; payments: Payment[]; total: number }) {
-  const adaLunas = payments.some((p) => p.status === 'paid');
-  const dibayar = sudahDibayar(payments);
-  const sisa = Math.max(0, total - dibayar);
-
-  if (payments.length === 0) {
-    return (
-      <Card title="Pembayaran">
-        <p className="text-sm text-slate-600 dark:text-slate-400">
-          Belum ada pembayaran yang tercatat. Bayar di kasir bengkel saat servis selesai, lalu struknya muncul di sini.
-        </p>
-      </Card>
-    );
-  }
-
-  return (
-    <Card title="Pembayaran">
-      <ul className="divide-y divide-slate-200 dark:divide-slate-800">
-        {payments.map((p) => (
-          <li key={p.id} className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1 py-3 first:pt-0">
-            <div className="min-w-0">
-              <p className="text-[15px] font-semibold text-slate-900 dark:text-white">{PAYMENT_TYPE[p.payment_type]}</p>
-              <p className="text-[13px] text-slate-600 dark:text-slate-400">
-                {PAYMENT_METHOD[p.method]}
-                {p.paid_at ? ` · ${formatDate(p.paid_at)}` : ''}
-                {p.midtrans_ref ? ` · Ref ${p.midtrans_ref}` : ''}
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-[15px] font-semibold text-slate-900 dark:text-white">{formatRp(p.amount)}</p>
-              <p
-                className={clsx(
-                  'text-[13px]',
-                  p.status === 'paid'
-                    ? 'text-emerald-700 dark:text-emerald-300'
-                    : p.status === 'failed'
-                      ? 'text-red-700 dark:text-red-300'
-                      : 'text-slate-600 dark:text-slate-400'
-                )}
-              >
-                {PAYMENT_STATUS[p.status]}
-              </p>
-            </div>
-          </li>
-        ))}
-      </ul>
-
-      <div className="mt-4 space-y-1.5 border-t border-slate-200 pt-4 dark:border-slate-800">
-        <div className="flex justify-between text-sm text-slate-600 dark:text-slate-400">
-          <span>Sudah dibayar</span>
-          <span>{formatRp(dibayar)}</span>
-        </div>
-        <div className="flex items-baseline justify-between gap-3">
-          <span className="font-semibold text-slate-900 dark:text-white">{sisa > 0 ? 'Sisa tagihan' : 'Status'}</span>
-          <span className="text-[20px] font-bold text-slate-900 dark:text-white">
-            {sisa > 0 ? formatRp(sisa) : 'Lunas'}
-          </span>
-        </div>
-      </div>
-
-      {adaLunas && (
-        <Link href={`/bookings/${bookingId}/struk`} className={clsx(btnSecondary, 'mt-5 w-full sm:w-auto')}>
-          <Receipt className="h-4 w-4" aria-hidden />
-          Lihat struk pembayaran
-        </Link>
-      )}
-    </Card>
   );
 }
 
@@ -364,7 +285,6 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
   const photos = booking.photos ?? [];
   const wa = booking.branch ? waNumber(booking.branch.phone) : null;
   const tel = booking.branch?.phone.replace(/[^0-9+]/g, '');
-  const total = booking.final_cost ?? booking.estimated_cost;
 
   return (
     <div className="space-y-8 sm:space-y-10">
@@ -470,56 +390,22 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
 
       <div className="grid items-start gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
-          <Card title="Rincian servis">
-            <ul className="divide-y divide-slate-200 dark:divide-slate-800">
-              {booking.booking_services.map(({ service, price_at_booking }, i) => (
-                <li key={i} className="flex items-start justify-between gap-3 py-3.5 text-[15px] first:pt-0">
-                  <span className="font-semibold text-slate-900 dark:text-white">{service.name}</span>
-                  {(price_at_booking ?? service.price) != null && (
-                    <span className="shrink-0 text-slate-700 dark:text-slate-300">
-                      {formatRp(price_at_booking ?? service.price)}
-                    </span>
-                  )}
-                </li>
-              ))}
-            </ul>
-            <div className="mt-3 space-y-1.5 border-t border-slate-200 pt-4 dark:border-slate-800">
-              {(() => {
-                // Selisih antara jumlah harga layanan dan estimasi = potongan kode promo (dicatat di riwayat status).
-                const subtotal = booking.booking_services.reduce(
-                  (sum, bs) => sum + Number(bs.price_at_booking ?? bs.service.price ?? 0),
-                  0
-                );
-                const discount = subtotal - Number(booking.estimated_cost);
-                return discount > 0 ? (
-                  <div className="flex justify-between text-sm text-slate-600 dark:text-slate-400">
-                    <span>Diskon kode promo</span>
-                    <span className="text-emerald-700 dark:text-emerald-300">-{formatRp(discount)}</span>
-                  </div>
-                ) : null;
-              })()}
-              {booking.final_cost != null && (
-                <div className="flex justify-between text-sm text-slate-600 dark:text-slate-400">
-                  <span>Estimasi awal</span>
-                  <span>{formatRp(booking.estimated_cost)}</span>
-                </div>
-              )}
-              <div className="flex items-baseline justify-between gap-3">
-                <span className="font-semibold text-slate-900 dark:text-white">
-                  {booking.final_cost != null ? 'Biaya akhir' : 'Estimasi biaya'}
-                </span>
-                <span className="text-[28px] font-bold tracking-[-0.015em] text-slate-900 dark:text-white">{formatRp(total)}</span>
-              </div>
-            </div>
-            {booking.complaint_notes && (
-              <div className="mt-5 rounded-ctl bg-slate-50 p-4 dark:bg-slate-800/60 sm:p-5">
-                <p className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">Keluhan yang kamu tulis</p>
-                <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">{booking.complaint_notes}</p>
-              </div>
-            )}
-          </Card>
+          {/* Rincian servis & pembayaran disajikan sebagai struk, sumbernya sama dengan
+              halaman /struk supaya tidak ada dua versi tampilan yang bisa berbeda. */}
+          <Struk booking={booking} />
 
-          {!cancelled && <PaymentCard bookingId={booking.id} payments={booking.payments ?? []} total={Number(total)} />}
+          <div className="flex justify-center">
+            <Link href={`/bookings/${booking.id}/struk`} className={btnSecondary}>
+              <Receipt className="h-4 w-4" aria-hidden />
+              Buka struk untuk dicetak
+            </Link>
+          </div>
+
+          {booking.complaint_notes && (
+            <Card title="Keluhan yang kamu tulis">
+              <p className="text-sm text-slate-700 dark:text-slate-300">{booking.complaint_notes}</p>
+            </Card>
+          )}
 
           {!cancelled && (
             <Card title="Foto kondisi kendaraan">
