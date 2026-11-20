@@ -13,6 +13,7 @@ import { OPERATING_SLOTS } from '@/lib/wib';
 import { useCustomerSupportChat } from '@/lib/support-chat';
 import { SupportChatDrawer } from './support-chat-drawer';
 import { NotificationPopover } from './notification-popover';
+import { PromoPopup } from './promo-popup';
 
 /**
  * Navbar atas (desktop). Sengaja pendek: Notifikasi, Setting, dan CS sudah punya
@@ -460,6 +461,9 @@ export function CustomerShell({ children }: { children: React.ReactNode }) {
           ))}
         </div>
       </nav>
+
+      {/* Iklan promo hanya untuk pelanggan yang sudah masuk, dan tidak di tengah form booking. */}
+      {session && !onBookingFlow && <PromoPopup />}
 
       <SupportChatDrawer
         isOpen={isSupportOpen}

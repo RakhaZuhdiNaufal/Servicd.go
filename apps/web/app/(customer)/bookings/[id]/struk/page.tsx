@@ -8,7 +8,7 @@ import { ChevronLeft, Printer } from 'lucide-react';
 import { fetcher } from '@/lib/fetcher';
 import { ErrorState, SkeletonBlock } from '@/components/customer/states';
 import { bookingCode, formatDate, formatRp, formatTime } from '@/lib/format';
-import { btnSecondary, card } from '@/components/customer/ui';
+import { btnSecondary } from '@/components/customer/ui';
 import {
   PAYMENT_METHOD,
   PAYMENT_STATUS,
@@ -33,12 +33,43 @@ interface Booking {
 
 function Baris({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex justify-between gap-4 text-sm">
-      <span className="text-slate-600 dark:text-slate-400">{label}</span>
-      <span className="text-right text-slate-900 dark:text-white">{children}</span>
+    <div className="flex justify-between gap-4">
+      <span className="shrink-0 text-slate-600">{label}</span>
+      <span className="min-w-0 text-right">{children}</span>
     </div>
   );
 }
+
+/** Garis putus-putus antar blok, seperti sobekan baris pada nota kasir. */
+function Pemisah() {
+  return <div aria-hidden className="my-3 border-t border-dashed border-slate-400" />;
+}
+
+/**
+ * Kertas digunting bergerigi di tepi atas & bawah.
+ *
+ * Dipotong dengan mask, bukan ditimpa gradien: dengan mask, yang hilang benar-benar
+ * kertasnya, jadi tetap terlihat tersobek di atas latar apa pun (termasuk saat dicetak).
+ */
+const GIGI = 10; // tinggi gigi, px
+const kertasSobek = {
+  WebkitMaskImage: `
+    conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg),
+    conic-gradient(from 135deg at top, #0000, #000 1deg 89deg, #0000 90deg),
+    linear-gradient(#000 0 0)
+  `,
+  WebkitMaskSize: `${GIGI * 2}px ${GIGI}px, ${GIGI * 2}px ${GIGI}px, 100% calc(100% - ${GIGI * 2}px)`,
+  WebkitMaskPosition: 'bottom, top, center',
+  WebkitMaskRepeat: 'repeat-x, repeat-x, no-repeat',
+  maskImage: `
+    conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg),
+    conic-gradient(from 135deg at top, #0000, #000 1deg 89deg, #0000 90deg),
+    linear-gradient(#000 0 0)
+  `,
+  maskSize: `${GIGI * 2}px ${GIGI}px, ${GIGI * 2}px ${GIGI}px, 100% calc(100% - ${GIGI * 2}px)`,
+  maskPosition: 'bottom, top, center',
+  maskRepeat: 'repeat-x, repeat-x, no-repeat'
+} as const;
 
 export default function StrukPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -70,8 +101,8 @@ export default function StrukPage({ params }: { params: Promise<{ id: string }> 
   const sisa = Math.max(0, total - dibayar);
 
   return (
-    <div className="mx-auto max-w-xl space-y-5">
-      {/* print:hidden supaya yang tercetak hanya struknya. */}
+    <div className="mx-auto max-w-sm space-y-5">
+      {/* print:hidden supaya yang tercetak hanya kertas struknya. */}
       <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
         <Link
           href={`/bookings/${booking.id}`}
@@ -82,76 +113,96 @@ export default function StrukPage({ params }: { params: Promise<{ id: string }> 
         </Link>
         <button type="button" onClick={() => window.print()} className={btnSecondary}>
           <Printer className="h-4 w-4" aria-hidden />
-          Cetak / simpan PDF
+          Cetak
         </button>
       </div>
 
-      <article className={clsx(card, 'p-6 sm:p-8 print:border-0')}>
-        <header className="space-y-1 border-b border-dashed border-slate-300 pb-5 text-center dark:border-slate-700">
-          <p className="text-[19px] font-bold tracking-[-0.01em] text-slate-900 dark:text-white">ServiceGo</p>
+      {/* Kertas struk: selalu putih-hitam & font mono, termasuk di mode gelap — nota kasir
+          memang begitu, dan ini juga yang tercetak di kertas. */}
+      <article
+        style={kertasSobek}
+        className="relative bg-white px-6 pb-9 pt-9 font-mono text-[13px] leading-relaxed text-slate-900"
+      >
+        <header className="text-center">
+          <p className="text-[17px] font-bold uppercase tracking-[0.18em]">ServiceGo</p>
           {booking.branch && (
-            <>
-              <p className="text-sm text-slate-600 dark:text-slate-400">{booking.branch.name}</p>
-              <p className="text-[13px] text-slate-600 dark:text-slate-400">{booking.branch.address}</p>
-              <p className="text-[13px] text-slate-600 dark:text-slate-400">{booking.branch.phone}</p>
-            </>
+            <div className="mt-1.5 space-y-0.5 text-[12px] text-slate-600">
+              <p>{booking.branch.name}</p>
+              <p>{booking.branch.address}</p>
+              <p>Telp {booking.branch.phone}</p>
+            </div>
           )}
         </header>
 
-        <div className="space-y-1.5 border-b border-dashed border-slate-300 py-5 dark:border-slate-700">
-          <Baris label="Kode booking">
-            <span className="font-mono">{bookingCode(booking.id)}</span>
-          </Baris>
+        <Pemisah />
+
+        <div className="space-y-0.5">
+          <Baris label="No. Struk">{bookingCode(booking.id)}</Baris>
           {booking.customer?.full_name && <Baris label="Pelanggan">{booking.customer.full_name}</Baris>}
-          <Baris label="Kendaraan">
-            {booking.vehicle.plate_number} · {booking.vehicle.brand} {booking.vehicle.model}
+          <Baris label="Kendaraan">{booking.vehicle.plate_number}</Baris>
+          <Baris label="">
+            <span className="capitalize text-slate-600">
+              {booking.vehicle.brand} {booking.vehicle.model}
+            </span>
           </Baris>
-          <Baris label="Tanggal servis">
-            {formatDate(booking.scheduled_at)}, {formatTime(booking.scheduled_at)}
+          <Baris label="Tanggal">
+            {formatDate(booking.scheduled_at)} {formatTime(booking.scheduled_at)}
           </Baris>
         </div>
 
-        <div className="space-y-2 border-b border-dashed border-slate-300 py-5 dark:border-slate-700">
+        <Pemisah />
+
+        <div className="space-y-1.5">
           {booking.booking_services.map((bs, i) => (
-            <Baris key={i} label={bs.service.name}>
-              {formatRp(bs.price_at_booking ?? bs.service.price ?? 0)}
-            </Baris>
+            <div key={i}>
+              <p className="uppercase">{bs.service.name}</p>
+              <div className="flex justify-between gap-4 text-slate-600">
+                <span>1 x</span>
+                <span>{formatRp(bs.price_at_booking ?? bs.service.price ?? 0)}</span>
+              </div>
+            </div>
           ))}
-          <div className="flex justify-between gap-4 pt-2 text-[15px] font-semibold text-slate-900 dark:text-white">
-            <span>Total tagihan</span>
-            <span>{formatRp(total)}</span>
-          </div>
         </div>
 
-        <div className="space-y-2 py-5">
+        <Pemisah />
+
+        <div className="flex justify-between gap-4 text-[15px] font-bold">
+          <span>TOTAL</span>
+          <span>{formatRp(total)}</span>
+        </div>
+
+        <Pemisah />
+
+        <div className="space-y-0.5">
           {payments.length === 0 ? (
-            <p className="text-sm text-slate-600 dark:text-slate-400">Belum ada pembayaran yang tercatat.</p>
+            <p className="text-center text-slate-600">- Belum ada pembayaran -</p>
           ) : (
             payments.map((p) => (
-              <Baris key={p.id} label={`${PAYMENT_TYPE[p.payment_type]} · ${PAYMENT_METHOD[p.method]}`}>
-                {formatRp(p.amount)}
-                <span className="block text-[13px] text-slate-600 dark:text-slate-400">
-                  {PAYMENT_STATUS[p.status]}
+              <div key={p.id}>
+                <Baris label={PAYMENT_METHOD[p.method]}>{formatRp(p.amount)}</Baris>
+                <p className="text-[11px] uppercase text-slate-500">
+                  {PAYMENT_TYPE[p.payment_type]} · {PAYMENT_STATUS[p.status]}
                   {p.paid_at ? ` · ${formatDate(p.paid_at)}` : ''}
-                </span>
-              </Baris>
+                </p>
+              </div>
             ))
           )}
+          <Baris label="Dibayar">{formatRp(dibayar)}</Baris>
+          <Baris label="Kembali">{formatRp(0)}</Baris>
         </div>
 
-        <div className="space-y-1.5 border-t border-dashed border-slate-300 pt-5 dark:border-slate-700">
-          <Baris label="Sudah dibayar">{formatRp(dibayar)}</Baris>
-          <div className="flex items-baseline justify-between gap-4">
-            <span className="font-semibold text-slate-900 dark:text-white">{sisa > 0 ? 'Sisa tagihan' : 'Status'}</span>
-            <span className="text-[22px] font-bold text-slate-900 dark:text-white">
-              {sisa > 0 ? formatRp(sisa) : 'LUNAS'}
-            </span>
-          </div>
-        </div>
+        <Pemisah />
 
-        <p className="mt-6 text-center text-[13px] text-slate-500 dark:text-slate-400">
-          Terima kasih sudah servis di ServiceGo. Simpan struk ini sebagai bukti pembayaran.
+        <p className="text-center text-[22px] font-bold tracking-[0.2em]">
+          {sisa > 0 ? `SISA ${formatRp(sisa)}` : 'LUNAS'}
         </p>
+
+        <Pemisah />
+
+        <div className="space-y-0.5 text-center text-[11px] uppercase tracking-wider text-slate-500">
+          <p>Terima kasih</p>
+          <p>Simpan struk ini sebagai bukti</p>
+        </div>
       </article>
     </div>
   );

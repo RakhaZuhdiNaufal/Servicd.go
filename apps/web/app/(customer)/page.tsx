@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { CalendarPlus, Car, ClipboardList, Clock, MapPin, Phone, RotateCcw, Tag, Wrench } from 'lucide-react';
+import { CalendarPlus, Car, ChevronDown, ChevronRight, ClipboardList, Clock, LayoutGrid, MapPin, Phone, Receipt, RotateCcw, Tag, Wrench } from 'lucide-react';
 import { clsx } from 'clsx';
 import { promoSummary, type PromoDTO } from '@servicego/shared';
 import { fetcher } from '@/lib/fetcher';
@@ -66,6 +66,9 @@ interface Booking {
 
 const longDate = (iso: string) =>
   formatDate(iso, { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Asia/Jakarta' });
+/** Tanggal ringkas untuk ruang sempit, misal "31 Des 2026". */
+const shortDate = (iso: string) =>
+  formatDate(iso, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Jakarta' });
 const fullDate = (iso: string) =>
   formatDate(iso, { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Jakarta' });
 const wibTime = (iso: string) => `${toWIBParts(new Date(iso)).time.replace(':', '.')} WIB`;
@@ -352,18 +355,18 @@ function VehiclesSection({ bookings }: { bookings?: Booking[] }) {
 
   return (
     <section aria-labelledby="kendaraan-title" className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div className="space-y-2">
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
           <h2 id="kendaraan-title" className={h2}>
             Kendaraan kamu
           </h2>
-          <p className={lead}>Booking ulang servis terakhir, atau mulai booking baru untuk kendaraan tertentu.</p>
+          {vehicles.length > 0 && (
+            <Link href="/profile" className="text-[15px] font-semibold text-slate-900 underline-offset-4 hover:underline dark:text-white">
+              Kelola di Profil
+            </Link>
+          )}
         </div>
-        {vehicles.length > 0 && (
-          <Link href="/profile" className={linkText}>
-            Kelola di Profil
-          </Link>
-        )}
+        <p className={lead}>Booking ulang servis terakhir, atau mulai booking baru untuk kendaraan tertentu.</p>
       </div>
 
       {vehiclesQuery.isLoading && (
@@ -396,13 +399,15 @@ function VehiclesSection({ bookings }: { bookings?: Booking[] }) {
             const last = lastDone.get(v.id);
             const firstService = last?.booking_services[0]?.service.name;
             return (
-              <li key={v.id} className={clsx(card, 'flex flex-col gap-5 p-6')}>
+              // min-w-0: tanpa ini sel grid tidak boleh menyusut di bawah lebar isinya,
+              // dan nama layanan yang panjang melebarkan kartu melewati layar.
+              <li key={v.id} className={clsx(card, 'flex min-w-0 flex-col p-5 sm:p-6')}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 space-y-2.5">
                     <Plate number={v.plate_number} size="lg" />
-                    <p className="text-[17px] font-semibold text-slate-900 dark:text-white">
+                    {/* capitalize: merek & model datang apa adanya dari input pengguna ("toyota Xenia"). */}
+                    <p className="text-[17px] font-semibold capitalize text-slate-900 dark:text-white">
                       {v.brand} {v.model}
-                      {v.year ? <span className="font-medium text-slate-600 dark:text-slate-400"> ({v.year})</span> : null}
                     </p>
                   </div>
                   <span className="shrink-0 rounded-chip bg-slate-100 px-2.5 py-1 text-[13px] font-semibold capitalize text-slate-700 dark:bg-slate-800 dark:text-slate-300">
@@ -410,44 +415,61 @@ function VehiclesSection({ bookings }: { bookings?: Booking[] }) {
                   </span>
                 </div>
 
-                <div className="rounded-ctl bg-slate-50 px-4 py-3.5 dark:bg-slate-800/60">
-                  {last ? (
-                    <>
-                      <p className="text-[13px] text-slate-600 dark:text-slate-400">
-                        Servis terakhir, {fullDate(last.scheduled_at)}
-                        {last.branch?.name ? ` di ${last.branch.name}` : ''}
-                      </p>
-                      <p className="mt-0.5 text-[15px] font-semibold text-slate-900 dark:text-white">
-                        {last.booking_services.map((bs) => bs.service.name).join(', ') || 'Layanan belum tercatat'}
-                      </p>
-                    </>
-                  ) : (
-                    <p className="text-[15px] text-slate-600 dark:text-slate-400">
-                      {v.last_service_date
-                        ? `Servis terakhir ${fullDate(v.last_service_date)}`
-                        : 'Belum ada servis selesai di ServiceGo'}
-                    </p>
+                <dl className="mt-5 divide-y divide-slate-200 border-y border-slate-200 text-[14px] dark:divide-slate-800 dark:border-slate-800">
+                  {v.year != null && (
+                    <div className="flex items-baseline justify-between gap-4 py-2.5">
+                      <dt className="text-slate-500 dark:text-slate-400">Tahun</dt>
+                      <dd className="text-slate-900 dark:text-white">{v.year}</dd>
+                    </div>
                   )}
-                </div>
+                  {v.last_odometer_km != null && (
+                    <div className="flex items-baseline justify-between gap-4 py-2.5">
+                      <dt className="text-slate-500 dark:text-slate-400">Odometer</dt>
+                      <dd className="text-slate-900 dark:text-white">
+                        {v.last_odometer_km.toLocaleString('id-ID')} km
+                      </dd>
+                    </div>
+                  )}
+                  <div className="flex items-baseline justify-between gap-4 py-2.5">
+                    <dt className="shrink-0 text-slate-500 dark:text-slate-400">Servis terakhir</dt>
+                    <dd className="min-w-0 text-right text-slate-900 dark:text-white">
+                      {last ? (
+                        <>
+                          <span className="block">{fullDate(last.scheduled_at)}</span>
+                          <span className="block truncate text-[13px] text-slate-500 dark:text-slate-400">
+                            {last.booking_services.map((bs) => bs.service.name).join(', ') || 'Layanan belum tercatat'}
+                          </span>
+                        </>
+                      ) : v.last_service_date ? (
+                        fullDate(v.last_service_date)
+                      ) : (
+                        <span className="text-slate-500 dark:text-slate-400">Belum ada</span>
+                      )}
+                    </dd>
+                  </div>
+                </dl>
 
-                <div className="mt-auto flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+                <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
                   {last ? (
+                    // Sudah pernah servis: yang utama melihat bukti servis terakhir, bukan booking lagi.
                     <>
-                      <Link href={rebookHref(last)} className={btnSecondary} aria-describedby={`ulang-${v.id}`}>
-                        <RotateCcw className="h-4 w-4" aria-hidden />
+                      <Link href={`/bookings/${last.id}/struk`} className={btnSecondary}>
+                        <Receipt className="h-4 w-4" aria-hidden />
+                        Lihat struk servis
+                      </Link>
+                      <Link
+                        href={rebookHref(last)}
+                        className={clsx(linkText, 'justify-center sm:px-2')}
+                        title={`Ulangi servis ${firstService ?? ''}`.trim()}
+                      >
+                        <RotateCcw className="mr-1.5 h-4 w-4" aria-hidden />
                         Booking ulang
                       </Link>
-                      <Link href={`/booking/new?vehicle_id=${v.id}`} className={clsx(linkText, 'justify-center sm:px-2')}>
-                        Pilih layanan lain
-                      </Link>
-                      <p id={`ulang-${v.id}`} className="w-full text-[13px] text-slate-600 dark:text-slate-400">
-                        Kendaraan, bengkel{firstService ? `, dan ${firstService}` : ''} langsung terpilih di form booking.
-                      </p>
                     </>
                   ) : (
                     <Link href={`/booking/new?vehicle_id=${v.id}`} className={btnSecondary}>
                       <CalendarPlus className="h-4 w-4" aria-hidden />
-                      Booking untuk kendaraan ini
+                      Booking servis
                     </Link>
                   )}
                 </div>
@@ -480,10 +502,23 @@ function ServicesSection() {
     return map;
   }, [services]);
   const cats = SERVICE_CATEGORIES.filter((c) => grouped.has(c.id));
+  const [picked, setPicked] = useState<ServiceCategoryId | 'all'>('all');
+  const [catsOpen, setCatsOpen] = useState(false); // tertutup dulu, dibuka sendiri oleh pengguna
+  const active = picked !== 'all' && grouped.has(picked) ? picked : 'all';
+  const list = active === 'all' ? services : grouped.get(active) ?? [];
+
+  /** Satu baris menu kategori; bentuknya sama dengan panel kategori di landing. */
+  const itemCls = (on: boolean) =>
+    clsx(
+      'flex w-full min-h-[44px] items-center gap-3 rounded-ctl px-4 text-[15px] font-semibold transition-colors',
+      on
+        ? 'bg-slate-900 text-white dark:bg-slate-700'
+        : 'text-slate-900 hover:bg-slate-100 dark:text-white dark:hover:bg-slate-800'
+    );
 
   return (
-    <section aria-labelledby="layanan-title" className="space-y-8">
-      <div className="max-w-2xl space-y-2">
+    <section aria-labelledby="layanan-title" className="space-y-6">
+      <div className="mx-auto max-w-2xl space-y-2 text-center">
         <h2 id="layanan-title" className={h2}>
           Layanan dan harga
         </h2>
@@ -514,18 +549,58 @@ function ServicesSection() {
         />
       )}
 
-      {/* Dikelompokkan per kategori: tiap kelompok punya judulnya sendiri, jadi baris
-          terakhir yang isinya kurang dari tiga kartu tetap terbaca rapi. */}
-      {cats.map((c) => {
-        const Icon = CATEGORY_ICONS[c.id];
-        return (
-          <div key={c.id} className="space-y-4">
-            <h3 className="flex items-center gap-2 border-b border-slate-200 pb-3 text-[17px] font-semibold text-slate-900 dark:border-slate-800 dark:text-white">
-              <Icon className="h-[18px] w-[18px] text-accent-600 dark:text-accent-500" aria-hidden />
-              {c.label}
-            </h3>
-            <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {(grouped.get(c.id) ?? []).map((s) => (
+      {cats.length > 0 && (
+        <div className="grid gap-6 lg:grid-cols-[240px_1fr] lg:items-start">
+          {/* Kiri: panel kategori dengan dropdown, sama seperti di landing. */}
+          <nav aria-label="Kategori layanan" className={clsx(card, 'space-y-1.5 p-3')}>
+            <p className="pb-2 pt-1 text-center text-[13px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              Kategori
+            </p>
+            <div className="mx-2 mb-1 border-b border-slate-200 dark:border-slate-800" aria-hidden />
+
+            <button
+              type="button"
+              aria-pressed={active === 'all'}
+              onClick={() => setPicked('all')}
+              className={itemCls(active === 'all')}
+            >
+              <LayoutGrid
+                className={clsx('h-[18px] w-[18px] shrink-0', active === 'all' ? 'text-white' : 'text-slate-500 dark:text-slate-400')}
+                aria-hidden
+              />
+              <span className="flex-1 text-left">Semua</span>
+            </button>
+
+            <button
+              type="button"
+              aria-expanded={catsOpen}
+              onClick={() => setCatsOpen((v) => !v)}
+              className="flex w-full min-h-[44px] items-center gap-3 rounded-ctl px-4 text-[15px] font-semibold text-slate-900 transition-colors hover:bg-slate-100 dark:text-white dark:hover:bg-slate-800"
+            >
+              <span className="flex-1 text-left">Per kategori</span>
+              <ChevronDown className={clsx('h-4 w-4 shrink-0 transition-transform', catsOpen && 'rotate-180')} aria-hidden />
+            </button>
+
+            {catsOpen &&
+              cats.map((c) => {
+                const on = c.id === active;
+                const Icon = CATEGORY_ICONS[c.id];
+                return (
+                  <button key={c.id} type="button" aria-pressed={on} onClick={() => setPicked(c.id)} className={itemCls(on)}>
+                    <Icon
+                      className={clsx('h-[18px] w-[18px] shrink-0', on ? 'text-white' : 'text-slate-500 dark:text-slate-400')}
+                      aria-hidden
+                    />
+                    <span className="flex-1 text-left">{c.label}</span>
+                  </button>
+                );
+              })}
+          </nav>
+
+          <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {list.map((s) => {
+              const Icon = CATEGORY_ICONS[getServiceCategory(s.name, s.description)];
+              return (
                 <li key={s.id} className={clsx(card, 'group flex h-full flex-col overflow-hidden')}>
                   {/* "Foto" layanan: blok gelap + ikon kategori, sama seperti kartu di landing. */}
                   <span
@@ -557,11 +632,11 @@ function ServicesSection() {
                     </div>
                   </div>
                 </li>
-              ))}
-            </ul>
-          </div>
-        );
-      })}
+              );
+            })}
+          </ul>
+        </div>
+      )}
     </section>
   );
 }
@@ -575,14 +650,9 @@ function PromosSection() {
 
   return (
     <section aria-labelledby="promo-title" className="space-y-6">
-      <div className="max-w-2xl space-y-2">
-        <h2 id="promo-title" className={h2}>
-          Promo yang bisa langsung dipakai
-        </h2>
-        <p className={lead}>
-          Pakai kodenya di ringkasan booking. Diskon langsung dipotong dari estimasi biaya layanan yang kamu pilih.
-        </p>
-      </div>
+      <h2 id="promo-title" className={clsx(h2, 'text-center')}>
+        Kode voucher
+      </h2>
 
       {promosQuery.isLoading && (
         <div className="grid gap-4 md:grid-cols-3" aria-busy>
@@ -605,37 +675,52 @@ function PromosSection() {
       )}
 
       {promos.length > 0 && (
-        <ul className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {promos.map((p) => (
-            <li key={p.id} className={clsx(card, 'flex flex-col gap-4 p-6')}>
-              <div className="flex items-center justify-between gap-3">
-                <span className="rounded-plate bg-slate-900 px-3 py-1.5 font-mono text-[15px] font-semibold tracking-wide text-white ring-1 ring-inset ring-white/25 dark:bg-slate-950 dark:outline dark:outline-1 dark:outline-slate-600">
-                  <span className="sr-only">Kode promo </span>
-                  {p.code}
-                </span>
-                <span className="text-[24px] font-bold text-accent-600 dark:text-accent-500">
-                  {p.discount_type === 'nominal' ? formatRp(p.discount_value) : `${p.discount_percent}%`}
-                </span>
-              </div>
-              <div className="space-y-1">
-                <h3 className="text-[17px] font-semibold text-slate-900 dark:text-white">{p.title}</h3>
-                <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-400">{p.description}</p>
-              </div>
+            <li key={p.id}>
+              {/* Bentuk tiket: kepala gelap, lalu garis sobek dengan dua lubang yang menggigit
+                  tepi kiri & kanan kartu. Lubang diwarnai latar halaman dan dipotong
+                  overflow-hidden, jadi siluet kartunya benar-benar terlihat berlubang. */}
+              <Link
+                href={`/booking/new?promo=${encodeURIComponent(p.code)}`}
+                aria-label={`Booking pakai kode promo ${p.code}`}
+                className="group relative flex h-full items-stretch overflow-hidden rounded-[14px] border border-slate-200 bg-white transition-colors hover:border-slate-400 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-500"
+              >
+                <div className="flex w-[84px] shrink-0 items-center justify-center bg-slate-900 dark:bg-slate-950">
+                  <span className="text-[22px] font-bold leading-none tracking-[-0.02em] text-accent-500">
+                    {p.discount_type === 'nominal' ? formatRp(p.discount_value) : `${p.discount_percent}%`}
+                  </span>
+                </div>
 
-              <div className="mt-auto space-y-3 border-t border-slate-200 pt-4 dark:border-slate-800">
-                {/* Aturan yang benar-benar diterapkan server (computePromoDiscount di packages/shared). */}
-                <p className="text-sm font-semibold text-slate-900 dark:text-white">
-                  {promoSummary(p)} dari estimasi layanan yang kamu pilih saat booking.
-                  {p.min_spend ? ` Minimal belanja ${formatRp(p.min_spend)}.` : ''}
-                </p>
-                <p className="inline-flex items-center gap-1.5 text-[13px] text-slate-600 dark:text-slate-400">
-                  <Tag className="h-3.5 w-3.5" aria-hidden />
-                  {p.valid_until ? `Berlaku sampai ${fullDate(p.valid_until)}` : 'Tanpa batas waktu'}
-                </p>
-                <Link href={`/booking/new?promo=${encodeURIComponent(p.code)}`} className={clsx(btnSecondary, 'w-full')}>
-                  Booking pakai {p.code}
-                </Link>
-              </div>
+                {/* Sobekan: dua gigitan bulat sewarna latar halaman di tepi atas & bawah. */}
+                <span aria-hidden className="relative z-10 w-0">
+                  <span className="absolute inset-y-2 -left-px border-l border-dashed border-slate-300 dark:border-slate-600" />
+                  <span className="absolute -top-2 -left-2 h-4 w-4 rounded-full bg-[var(--bg-base)]" />
+                  <span className="absolute -bottom-2 -left-2 h-4 w-4 rounded-full bg-[var(--bg-base)]" />
+                </span>
+
+                <div className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3">
+                  <div className="min-w-0 flex-1 space-y-1.5">
+                    <p className="truncate text-[14px] font-semibold leading-snug text-slate-900 dark:text-white">
+                      {p.title}
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {/* Kode dibedakan sebagai chip, bukan teks tebal, supaya tidak bersaing dengan judul. */}
+                      <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] font-semibold tracking-wide text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                        <span className="sr-only">Kode promo </span>
+                        {p.code}
+                      </span>
+                      <span className="text-[12px] text-slate-500 dark:text-slate-400">
+                        {p.valid_until ? `s/d ${shortDate(p.valid_until)}` : 'Tanpa batas waktu'}
+                      </span>
+                    </div>
+                  </div>
+                  <ChevronRight
+                    className="h-4 w-4 shrink-0 text-slate-400 transition-transform group-hover:translate-x-0.5"
+                    aria-hidden
+                  />
+                </div>
+              </Link>
             </li>
           ))}
         </ul>
