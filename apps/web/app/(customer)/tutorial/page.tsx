@@ -131,10 +131,12 @@ export default function TutorialPage() {
             const Icon = CATEGORY_ICONS[t.category];
             return (
               <li key={t.id} className={clsx(card, 'flex h-full flex-col overflow-hidden')}>
-                {/* preload="metadata" supaya frame pertama tampil sebagai sampul tanpa mengunduh seluruh video. */}
+                {/* preload="none": video baru diunduh saat ditekan play. Dengan "metadata",
+                    enam video menembak permintaan sekaligus begitu halaman dibuka — dan selama
+                    filenya belum ada, tiap 404 menahan halaman beberapa detik. */}
                 <video
                   controls
-                  preload="metadata"
+                  preload="none"
                   src={videoUrl(t.file)}
                   aria-label={`Video tutorial ${t.title}`}
                   className="h-44 w-full bg-slate-900 object-cover"
