@@ -67,6 +67,18 @@ export async function GET(
             service: true
           }
         },
+        payments: {
+          select: {
+            id: true,
+            amount: true,
+            payment_type: true,
+            method: true,
+            status: true,
+            paid_at: true,
+            created_at: true
+          },
+          orderBy: { created_at: 'desc' }
+        },
         status_history: {
           select: {
             id: true,

@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { clsx } from 'clsx';
-import { Banknote, CheckCircle2, Clock, Plus, Receipt, Trash2, XCircle } from 'lucide-react';
+import { Banknote, CheckCircle2, Clock, Flame, Plus, Receipt, Trash2, XCircle } from 'lucide-react';
 import {
   PAYMENT_METHOD,
   PAYMENT_METHOD_LABEL,
@@ -70,13 +70,18 @@ interface ListResponse {
   payments: Payment[];
   summary: {
     paid: number;
+    settled_paid?: number;
+    settled_paid_count?: number;
+    dp_warm?: number;
+    dp_warm_count?: number;
+    total_received?: number;
     pending: number;
     failed: number;
     paid_count: number;
     pending_count: number;
     failed_count: number;
   };
-  daily: Array<{ day: string; amount: number }>;
+  daily: Array<{ day: string; amount: number; dp_amount?: number; total?: number }>;
   meta: { total: number; page: number; limit: number; total_pages: number };
 }
 
@@ -91,10 +96,16 @@ interface BookingOption {
 }
 
 const STATUS_FILTERS: Array<{ value: '' | PaymentStatus; label: string }> = [
-  { value: '', label: 'Semua' },
+  { value: '', label: 'Semua Status' },
   { value: 'paid', label: 'Lunas' },
   { value: 'pending', label: 'Menunggu' },
   { value: 'failed', label: 'Gagal' }
+];
+
+const TYPE_FILTERS: Array<{ value: '' | PaymentType; label: string }> = [
+  { value: '', label: 'Semua Jenis' },
+  { value: 'pelunasan', label: 'Pelunasan (Lunas)' },
+  { value: 'dp', label: 'DP (Uang Hangat)' }
 ];
 
 const PAGE_SIZE = 20;
@@ -135,6 +146,7 @@ function PembayaranContent() {
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<'' | PaymentStatus>('');
+  const [paymentType, setPaymentType] = useState<'' | PaymentType>('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [page, setPage] = useState(1);
@@ -162,13 +174,14 @@ function PembayaranContent() {
     page: String(page),
     limit: String(PAGE_SIZE),
     ...(status ? { status } : {}),
+    ...(paymentType ? { type: paymentType } : {}),
     ...(search ? { search } : {}),
     ...(startDate ? { start_date: startDate } : {}),
     ...(endDate ? { end_date: endDate } : {})
   });
 
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery<ListResponse>({
-    queryKey: ['admin-payments', page, status, search, startDate, endDate],
+    queryKey: ['admin-payments', page, status, paymentType, search, startDate, endDate],
     queryFn: () => fetcher(`/admin/payments?${params}`)
   });
 
@@ -200,13 +213,13 @@ function PembayaranContent() {
   });
 
   const payments = data?.payments ?? [];
-  const hasFilter = !!(status || search || startDate || endDate);
+  const hasFilter = !!(status || paymentType || search || startDate || endDate);
 
   return (
     <div className="space-y-5">
       <AdminPageHeader
         title="Pemasukan & pembayaran"
-        description="Catat DP dan pelunasan dari pelanggan, lalu pantau uang yang benar-benar masuk."
+        description="Kelola transaksi pelunasan (uang masuk sah) dan DP (uang hangat titipan yang bisa refund jika batal)."
         action={
           <button type="button" onClick={() => setFormOpen(true)} className={btnPrimary}>
             <Plus className="h-4 w-4" aria-hidden />
@@ -215,25 +228,33 @@ function PembayaranContent() {
         }
       />
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      {/* 4 KPI Cards: Uang Masuk, Uang Hangat (DP), Menunggu, Gagal */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <SummaryCard
           tone="green"
           icon={Banknote}
-          label="Uang masuk (lunas)"
-          value={formatRp(data?.summary.paid ?? 0)}
-          note={`${data?.summary.paid_count ?? 0} transaksi`}
+          label="Uang Masuk (Pelunasan Lunas)"
+          value={formatRp(data?.summary.settled_paid ?? data?.summary.paid ?? 0)}
+          note={`${data?.summary.settled_paid_count ?? data?.summary.paid_count ?? 0} transaksi lunas`}
+        />
+        <SummaryCard
+          tone="orange"
+          icon={Flame}
+          label="Uang Hangat (DP Aktif)"
+          value={formatRp(data?.summary.dp_warm ?? 0)}
+          note={`${data?.summary.dp_warm_count ?? 0} transaksi DP (titipan/bisa refund)`}
         />
         <SummaryCard
           tone="amber"
           icon={Clock}
-          label="Menunggu pembayaran"
+          label="Menunggu Pembayaran"
           value={formatRp(data?.summary.pending ?? 0)}
           note={`${data?.summary.pending_count ?? 0} transaksi`}
         />
         <SummaryCard
           tone="red"
           icon={XCircle}
-          label="Gagal / batal"
+          label="Gagal / Batal"
           value={formatRp(data?.summary.failed ?? 0)}
           note={`${data?.summary.failed_count ?? 0} transaksi`}
         />
@@ -260,10 +281,19 @@ function PembayaranContent() {
           onChange={setSearchInput}
         />
         <Segmented
+          label="Filter jenis pembayaran"
+          value={paymentType}
+          onChange={(v) => {
+            setPaymentType(v as '' | PaymentType);
+            setPage(1);
+          }}
+          options={TYPE_FILTERS}
+        />
+        <Segmented
           label="Filter status pembayaran"
           value={status}
           onChange={(v) => {
-            setStatus(v);
+            setStatus(v as '' | PaymentStatus);
             setPage(1);
           }}
           options={STATUS_FILTERS}
@@ -306,6 +336,7 @@ function PembayaranContent() {
               type="button"
               onClick={() => {
                 setStatus('');
+                setPaymentType('');
                 setSearchInput('');
                 setSearch('');
                 setStartDate('');
@@ -392,12 +423,26 @@ function PembayaranContent() {
                     </div>
                   </Td>
                   <Td>
-                    <span className="whitespace-nowrap text-slate-800 dark:text-slate-200">
-                      {PAYMENT_TYPE_LABEL[p.payment_type]}
-                    </span>
-                    {p.midtrans_ref && (
-                      <p className="truncate font-mono text-[12px] text-slate-500 dark:text-slate-400">{p.midtrans_ref}</p>
-                    )}
+                    <div className="flex flex-col gap-0.5">
+                      {p.payment_type === 'dp' ? (
+                        <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-orange-200 bg-orange-50 px-2 py-0.5 text-xs font-semibold text-orange-800 dark:border-orange-900/60 dark:bg-orange-950/60 dark:text-orange-300 w-fit">
+                          <Flame className="h-3 w-3 text-orange-600 dark:text-orange-400" />
+                          DP (Uang Hangat)
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-800 dark:border-blue-900/60 dark:bg-blue-950/60 dark:text-blue-300 w-fit">
+                          Pelunasan
+                        </span>
+                      )}
+                      {p.payment_type === 'dp' && p.booking.status === 'dibatalkan' && (
+                        <span className="text-[11px] font-bold text-red-600 dark:text-red-400">
+                          ⚠️ Wajib Refund (Booking Batal)
+                        </span>
+                      )}
+                      {p.midtrans_ref && (
+                        <p className="truncate font-mono text-[12px] text-slate-500 dark:text-slate-400">{p.midtrans_ref}</p>
+                      )}
+                    </div>
                   </Td>
                   <Td align="right">
                     <span className="font-semibold tabular-nums text-slate-900 dark:text-white">
@@ -489,6 +534,7 @@ function PembayaranContent() {
 
 const TONE: Record<string, string> = {
   green: 'bg-green-50 text-green-700 dark:bg-green-950/60 dark:text-green-300',
+  orange: 'bg-orange-50 text-orange-700 dark:bg-orange-950/60 dark:text-orange-300',
   amber: 'bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300',
   red: 'bg-red-50 text-red-700 dark:bg-red-950/60 dark:text-red-300'
 };
@@ -755,11 +801,23 @@ function PaymentFormDialog({
           </Field>
           <Field id="bayar-jenis" label="Jenis pembayaran" required>
             <select id="bayar-jenis" value={type} onChange={(e) => setType(e.target.value as PaymentType)} className={inputCls}>
-              <option value="dp">{PAYMENT_TYPE_LABEL.dp}</option>
-              <option value="pelunasan">{PAYMENT_TYPE_LABEL.pelunasan}</option>
+              <option value="dp">{PAYMENT_TYPE_LABEL.dp} (Uang Hangat)</option>
+              <option value="pelunasan">{PAYMENT_TYPE_LABEL.pelunasan} (Uang Masuk / Lunas)</option>
             </select>
           </Field>
         </div>
+
+        {type === 'dp' && (
+          <div className="rounded-xl border border-orange-200 bg-orange-50/80 p-3 text-xs text-orange-900 dark:border-orange-900/50 dark:bg-orange-950/40 dark:text-orange-200">
+            <span className="font-bold flex items-center gap-1.5">
+              <Flame className="h-3.5 w-3.5 text-orange-600 dark:text-orange-400" />
+              Ketentuan DP (Uang Hangat):
+            </span>
+            <p className="mt-1 text-[11px] leading-relaxed text-orange-800 dark:text-orange-300">
+              DP masuk kategori <strong>Uang Hangat (titipan/deposit sementara)</strong> dan tidak dihitung ke pendapatan lunas bengkel. Dana DP ini wajib dikembalikan (refund) ke pelanggan bila booking dibatalkan oleh pihak bengkel/admin.
+            </p>
+          </div>
+        )}
 
         <div className="grid gap-4 sm:grid-cols-2">
           <Field id="bayar-metode" label="Cara bayar" required>

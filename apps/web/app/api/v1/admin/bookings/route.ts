@@ -99,6 +99,16 @@ export async function GET(request: NextRequest) {
             include: {
               service: true
             }
+          },
+          payments: {
+            select: {
+              id: true,
+              amount: true,
+              payment_type: true,
+              method: true,
+              status: true,
+              paid_at: true
+            }
           }
         },
         orderBy: { scheduled_at: 'desc' },

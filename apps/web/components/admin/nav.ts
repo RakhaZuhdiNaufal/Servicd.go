@@ -1,6 +1,8 @@
 import {
   LayoutDashboard,
   Calendar,
+  PlayCircle,
+  CheckCircle2,
   Users,
   Car,
   Wrench,
@@ -31,6 +33,8 @@ export const ADMIN_NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
       { href: '/admin/bookings', label: 'Booking', icon: Calendar },
+      { href: '/admin/on-progress', label: 'On Progress', icon: PlayCircle },
+      { href: '/admin/servis-selesai', label: 'Servis Selesai', icon: CheckCircle2 },
       { href: '/admin/pembayaran', label: 'Pembayaran', icon: Wallet },
       { href: '/admin/support', label: 'Live Support', icon: Headphones }
     ]

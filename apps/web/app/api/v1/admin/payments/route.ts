@@ -82,44 +82,78 @@ export async function GET(request: NextRequest) {
       }),
       // Rekap mengikuti filter yang sama, tapi tanpa paginasi.
       prisma.payment.groupBy({
-        by: ['status'],
+        by: ['status', 'payment_type'],
         where,
         _sum: { amount: true },
         _count: { id: true }
       })
     ]);
 
-    const summary = { paid: 0, pending: 0, failed: 0, paid_count: 0, pending_count: 0, failed_count: 0 };
+    // DP dikelompokkan sebagai "Uang Hangat" (titipan/deposit sementara, bukan pendapatan lunas final).
+    // Hanya "pelunasan" yang berstatus paid yang dihitung sebagai "Uang Masuk / Lunas".
+    const summary = {
+      paid: 0, // Uang Masuk (Pelunasan Lunas)
+      settled_paid: 0,
+      settled_paid_count: 0,
+      dp_warm: 0, // Uang Hangat (DP Paid)
+      dp_warm_count: 0,
+      total_received: 0, // Total uang yang diterima di kasir/bank (Pelunasan + DP)
+      pending: 0,
+      pending_count: 0,
+      failed: 0,
+      failed_count: 0
+    };
+
     for (const row of grouped) {
       const amount = row._sum.amount ? Number(row._sum.amount) : 0;
+      const count = row._count.id;
+
       if (row.status === PaymentStatus.paid) {
-        summary.paid = amount;
-        summary.paid_count = row._count.id;
+        summary.total_received += amount;
+        if (row.payment_type === PaymentType.pelunasan) {
+          summary.settled_paid += amount;
+          summary.settled_paid_count += count;
+        } else if (row.payment_type === PaymentType.dp) {
+          summary.dp_warm += amount;
+          summary.dp_warm_count += count;
+        }
       } else if (row.status === PaymentStatus.pending) {
-        summary.pending = amount;
-        summary.pending_count = row._count.id;
+        summary.pending += amount;
+        summary.pending_count += count;
       } else {
-        summary.failed = amount;
-        summary.failed_count = row._count.id;
+        summary.failed += amount;
+        summary.failed_count += count;
       }
     }
 
-    // Grafik pemasukan harian: hanya pembayaran lunas, dikelompokkan per tanggal WIB.
+    // Uang Masuk / Lunas hanya mencakup pelunasan yang paid (tidak mencampur DP)
+    summary.paid = summary.settled_paid;
+
+    // Grafik pemasukan harian: dipisahkan antara pelunasan lunas dan DP (uang hangat),
+    // dikelompokkan per tanggal WIB.
     const paidRows = await prisma.payment.findMany({
       where: { ...where, status: PaymentStatus.paid },
-      select: { amount: true, paid_at: true, created_at: true },
+      select: { amount: true, payment_type: true, paid_at: true, created_at: true },
       orderBy: { created_at: 'asc' },
       take: 2000
     });
 
-    const byDay = new Map<string, number>();
+    const byDay = new Map<string, { settled: number; dp: number; total: number }>();
     for (const p of paidRows) {
       const day = toWIBParts(p.paid_at ?? p.created_at).date;
-      byDay.set(day, (byDay.get(day) ?? 0) + Number(p.amount));
+      const cur = byDay.get(day) ?? { settled: 0, dp: 0, total: 0 };
+      const val = Number(p.amount);
+      if (p.payment_type === PaymentType.pelunasan) {
+        cur.settled += val;
+      } else {
+        cur.dp += val;
+      }
+      cur.total += val;
+      byDay.set(day, cur);
     }
     const daily = [...byDay.entries()]
       .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([day, amount]) => ({ day, amount }));
+      .map(([day, val]) => ({ day, amount: val.settled, dp_amount: val.dp, total: val.total }));
 
     return apiSuccess(
       {

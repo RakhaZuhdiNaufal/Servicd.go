@@ -1,8 +1,9 @@
 import { NextRequest } from 'next/server';
-import { prisma, BookingStatus, NotificationChannel } from '@servicego/database';
+import { prisma, BookingStatus, NotificationChannel, PaymentType, PaymentStatus } from '@servicego/database';
 import { updateBookingStatusSchema, bookingStatusBlockReason } from '@servicego/shared';
 import { apiSuccess, apiError, apiCatch, HttpError } from '@/lib/response';
 import { getAuthenticatedUser } from '@/lib/auth';
+import { formatRp } from '@/lib/format';
 
 // Kalimat notifikasi pelanggan per status baru.
 const STATUS_MESSAGE: Record<BookingStatus, string> = {
@@ -46,6 +47,17 @@ export async function PATCH(
       return apiError(blocked, 409);
     }
 
+    // Cek apakah booking memiliki pembayaran DP (Uang Hangat) yang sudah lunas/dibayar
+    const dpPayments = await prisma.payment.findMany({
+      where: {
+        booking_id: id,
+        payment_type: PaymentType.dp,
+        status: PaymentStatus.paid
+      }
+    });
+    const totalDpPaid = dpPayments.reduce((acc, p) => acc + Number(p.amount), 0);
+    const hasDpToRefund = status === BookingStatus.dibatalkan && totalDpPaid > 0;
+
     // Jalankan dalam transaksi: Update booking + Insert row baru ke BookingStatusHistory
     const updated = await prisma.$transaction(async (tx) => {
       // Update bersyarat status lama: kalau admin lain sudah mengubahnya duluan, batal (tidak saling timpa).
@@ -64,22 +76,31 @@ export async function PATCH(
       }
       const updatedBooking = await tx.booking.findUniqueOrThrow({ where: { id } });
 
+      const historyNote = hasDpToRefund
+        ? (note ? `${note} · ` : '') +
+          `[REFUND DP DIBUTUHKAN]: Booking memiliki DP (Uang Hangat) sebesar ${formatRp(totalDpPaid)} yang wajib dikembalikan ke pelanggan karena dibatalkan oleh pihak bengkel.`
+        : (note ?? `Status diubah menjadi ${status}`);
+
       // Simpan riwayat perubahan status (audit trail)
       await tx.bookingStatusHistory.create({
         data: {
           booking_id: id,
           status: status as BookingStatus,
           changed_by: user.profileId,
-          note: note ?? `Status diubah menjadi ${status}`
+          note: historyNote
         }
       });
+
+      const notifBody = hasDpToRefund
+        ? `Booking kamu dibatalkan oleh pihak bengkel. Pengembalian dana DP (Uang Hangat) sebesar ${formatRp(totalDpPaid)} sedang diproses untuk dikembalikan ke kamu.${note ? ` Catatan: ${note}` : ''}`
+        : `${STATUS_MESSAGE[status]}${note ? ` Catatan: ${note}` : ''}`;
 
       // Buat notifikasi otomatis untuk pelanggan (PRD §8.3 & §10.2)
       await tx.notification.create({
         data: {
           user_id: booking.customer_id,
-          title: 'Pembaruan Status Booking',
-          body: `${STATUS_MESSAGE[status]}${note ? ` Catatan: ${note}` : ''}`,
+          title: hasDpToRefund ? 'Booking Dibatalkan & Refund DP Diproses' : 'Pembaruan Status Booking',
+          body: notifBody,
           sent_channel: NotificationChannel.push
         }
       });

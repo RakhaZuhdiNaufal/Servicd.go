@@ -15,12 +15,15 @@ import {
   Clock,
   Copy,
   Edit3,
+  ExternalLink,
   Gauge,
   History,
+  Loader2,
   Mail,
   MessageSquareShare,
   Phone,
   Save,
+  Send,
   ShieldCheck,
   Sparkles,
   Ticket,
@@ -305,6 +308,32 @@ export default function VehiclesPage() {
       return;
     }
     updateOdoMutation.mutate({ id: selectedVehicle.id, last_odometer_km: Math.round(parsed) });
+  }
+
+  const [isSendingWa, setIsSendingWa] = useState(false);
+
+  async function handleSendViaMoonwa(v: Vehicle) {
+    if (!v.owner.phone) {
+      toast.error(`Pelanggan ${v.owner.full_name} belum memiliki nomor HP/WhatsApp tercatat di akunnya.`);
+      return;
+    }
+
+    try {
+      setIsSendingWa(true);
+      await fetcher('/admin/whatsapp/send', {
+        method: 'POST',
+        body: JSON.stringify({
+          phone: v.owner.phone,
+          message: customMessage
+        })
+      });
+
+      toast.success(`Pesan pengingat berhasil dikirim ke nomor WhatsApp ${v.owner.phone} via Moonwa!`);
+    } catch (err: any) {
+      toast.error(err.message || 'Gagal mengirim WhatsApp via Moonwa');
+    } finally {
+      setIsSendingWa(false);
+    }
   }
 
   function handleSendToLiveSupport(v: Vehicle) {
@@ -1097,12 +1126,45 @@ export default function VehiclesPage() {
                       onChange={(e) => setCustomMessage(e.target.value)}
                       className="w-full rounded-xl border border-slate-200 bg-white p-3 text-xs leading-relaxed text-slate-800 focus:border-primary-600 focus:outline-none focus:ring-2 focus:ring-primary-600/15 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"
                     />
+
+                    {/* Status Nomor WhatsApp Tujuan */}
+                    <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 text-xs">
+                      {selectedVehicle.owner.phone ? (
+                        <div className="flex items-center gap-1.5 font-medium text-emerald-600 dark:text-emerald-400">
+                          <CheckCircle2 className="h-4 w-4" />
+                          <span>
+                            No. WhatsApp:{' '}
+                            <strong className="font-mono">{selectedVehicle.owner.phone}</strong>
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5 font-medium text-amber-600 dark:text-amber-400">
+                          <AlertTriangle className="h-4 w-4" />
+                          <span>Pelanggan belum memiliki nomor HP/WhatsApp tercatat</span>
+                        </div>
+                      )}
+
+                      {selectedVehicle.owner.phone && (
+                        <a
+                          href={`https://wa.me/${selectedVehicle.owner.phone
+                            .replace(/\D/g, '')
+                            .replace(/^0/, '62')
+                            .replace(/^8/, '628')}?text=${encodeURIComponent(customMessage)}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 font-semibold text-emerald-600 transition-colors hover:text-emerald-700 hover:underline dark:text-emerald-400"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" />
+                          Buka di WA Web
+                        </a>
+                      )}
+                    </div>
                   </div>
                 </section>
               </div>
 
               {/* Drawer Sticky Footer CTA */}
-              <div className="flex flex-col gap-2.5 border-t border-slate-200 bg-slate-50/90 px-6 py-4 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800 dark:bg-slate-900/90">
+              <div className="flex flex-col gap-2.5 border-t border-slate-200 bg-slate-50/95 px-6 py-4 dark:border-slate-800 dark:bg-slate-900/95 sm:flex-row sm:items-center sm:justify-between">
                 <button
                   type="button"
                   onClick={() => setSelectedVehicleId(null)}
@@ -1110,14 +1172,41 @@ export default function VehiclesPage() {
                 >
                   Tutup
                 </button>
-                <button
-                  type="button"
-                  onClick={() => handleSendToLiveSupport(selectedVehicle)}
-                  className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 text-sm font-bold text-white shadow-sm transition-all hover:bg-primary-700 active:scale-[0.99] sm:flex-initial"
-                >
-                  <MessageSquareShare className="h-4 w-4" />
-                  Kirim ke Live Support
-                </button>
+                <div className="flex flex-1 flex-col gap-2 sm:flex-initial sm:flex-row">
+                  <button
+                    type="button"
+                    onClick={() => handleSendToLiveSupport(selectedVehicle)}
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                  >
+                    <MessageSquareShare className="h-4 w-4 text-primary-600" />
+                    Live Support
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isSendingWa || !selectedVehicle.owner.phone}
+                    onClick={() => handleSendViaMoonwa(selectedVehicle)}
+                    className={clsx(
+                      'inline-flex h-11 items-center justify-center gap-2 rounded-xl px-5 text-sm font-bold text-white shadow-sm transition-all',
+                      !selectedVehicle.owner.phone
+                        ? 'cursor-not-allowed bg-slate-300 dark:bg-slate-800'
+                        : isSendingWa
+                        ? 'cursor-wait bg-emerald-700 opacity-80'
+                        : 'bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99]'
+                    )}
+                  >
+                    {isSendingWa ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Mengirim via Moonwa...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="h-4 w-4" />
+                        Kirim via WhatsApp (Moonwa)
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </aside>
           </div>

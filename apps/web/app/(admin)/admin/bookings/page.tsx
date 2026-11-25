@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
+import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
@@ -19,7 +20,10 @@ import {
   MapPin,
   CalendarClock,
   History,
-  Wallet
+  Wallet,
+  Calendar,
+  PlayCircle,
+  CheckCircle2
 } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, type DropResult } from '@hello-pangea/dnd';
 import { clsx } from 'clsx';
@@ -32,6 +36,7 @@ import { Plate } from '@/components/customer/plate';
 import { EmptyState, ErrorState, SkeletonBlock } from '@/components/customer/states';
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet';
 import { adminDate, adminSchedule, adminTime, toNumber } from '@/components/admin/format';
+import { AdminDialog, btnDanger, btnSecondary } from '@/components/admin/resource-ui';
 
 type BookingStatus = 'menunggu' | 'dikonfirmasi' | 'diproses' | 'selesai' | 'dibatalkan';
 
@@ -49,6 +54,7 @@ interface Booking {
   mechanic: { id: string; full_name: string; specialty?: string } | null;
   photos?: Array<{ id: string; photo_url: string; stage: 'checkin' | 'checkout'; caption: string | null }>;
   booking_services: Array<{ price_at_booking?: number | string; service: { name: string; price: number | string } }>;
+  payments?: Array<{ id: string; amount: number | string; payment_type: 'dp' | 'pelunasan'; status: 'pending' | 'paid' | 'failed' }>;
 }
 
 // Bentuk data dari GET /api/v1/admin/bookings/:id (detail lengkap + riwayat status)
@@ -309,12 +315,37 @@ function BookingsPageContent() {
     changeStatus(booking, newStatus);
   }
 
+  const [cancelWarning, setCancelWarning] = useState<{
+    bookingId: string;
+    dpAmount: number;
+    customerName: string;
+    customerPhone: string;
+    note?: string;
+  } | null>(null);
+
   // Semua perubahan status lewat sini: pembatalan langsung mengirim notifikasi ke pelanggan
-  // dan tidak bisa dibatalkan, jadi minta konfirmasi dulu.
+  // dan jika ada DP (Uang Hangat), tampilkan peringatan wajib refund.
   function changeStatus(b: { id: string; status: BookingStatus; scheduled_at: string }, to: BookingStatus, note?: string) {
     if (bookingStatusBlockReason(b.status, to, b.scheduled_at)) return;
-    if (to === 'dibatalkan' && !window.confirm('Batalkan booking ini? Pelanggan langsung diberi notifikasi dan status ini final.')) {
-      return;
+
+    if (to === 'dibatalkan') {
+      const fullBooking = bookings.find((item) => item.id === b.id) || (detailBooking?.id === b.id ? detailBooking : null);
+      const dpPayment = fullBooking?.payments?.find((p) => p.payment_type === 'dp' && p.status === 'paid');
+
+      if (dpPayment && Number(dpPayment.amount) > 0) {
+        setCancelWarning({
+          bookingId: b.id,
+          dpAmount: Number(dpPayment.amount),
+          customerName: fullBooking?.customer?.full_name || 'Pelanggan',
+          customerPhone: fullBooking?.customer?.phone || '',
+          note
+        });
+        return;
+      }
+
+      if (!window.confirm('Batalkan booking ini? Pelanggan langsung diberi notifikasi dan status ini final.')) {
+        return;
+      }
     }
     statusMutation.mutate({ id: b.id, status: to, note });
   }
@@ -360,6 +391,35 @@ function BookingsPageContent() {
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Tab Switcher: Semua Booking vs Servis On Progress vs Servis Selesai */}
+      <div className="flex border-b border-slate-200 dark:border-slate-800">
+        <Link
+          href="/admin/bookings"
+          className="inline-flex items-center gap-2 border-b-2 border-primary-600 px-4 py-2.5 text-sm font-semibold text-primary-600 dark:border-primary-400 dark:text-primary-400"
+        >
+          <Calendar className="h-4 w-4" />
+          Semua Booking & Jadwal
+        </Link>
+        <Link
+          href="/admin/on-progress"
+          className="group inline-flex items-center gap-2 border-b-2 border-transparent px-4 py-2.5 text-sm font-medium text-slate-600 hover:border-slate-300 hover:text-slate-900 dark:text-slate-400 dark:hover:border-slate-700 dark:hover:text-white transition-colors"
+        >
+          <PlayCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+          <span>Servis On Progress</span>
+          <span className="relative flex h-2 w-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
+          </span>
+        </Link>
+        <Link
+          href="/admin/servis-selesai"
+          className="group inline-flex items-center gap-2 border-b-2 border-transparent px-4 py-2.5 text-sm font-medium text-slate-600 hover:border-slate-300 hover:text-slate-900 dark:text-slate-400 dark:hover:border-slate-700 dark:hover:text-white transition-colors"
+        >
+          <CheckCircle2 className="h-4 w-4 text-slate-400 group-hover:text-emerald-500" />
+          <span>Servis Selesai</span>
+        </Link>
       </div>
 
       {/* Filter */}
@@ -676,7 +736,9 @@ function BookingsPageContent() {
         >
           <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-slate-200 bg-white px-5 py-4 dark:border-slate-800 dark:bg-slate-900">
             <div className="min-w-0">
-              <SheetTitle className="text-lg font-bold text-slate-900 dark:text-white">Detail booking</SheetTitle>
+              <SheetTitle className="text-lg font-bold text-slate-900 dark:text-white">
+                {detailBooking?.status === 'selesai' ? 'Detail servis' : 'Detail booking'}
+              </SheetTitle>
               <SheetDescription className="font-mono text-[13px] text-slate-600 dark:text-slate-400">
                 {detailBooking ? bookingCode(detailBooking.id) : detailId ? bookingCode(detailId) : ''}
               </SheetDescription>
@@ -776,13 +838,57 @@ function BookingsPageContent() {
                     <span className="tabular-nums">{formatRp(toNumber(detailBooking.final_cost))}</span>
                   </div>
                 )}
-                <a
-                  href={`/admin/pembayaran?booking_id=${detailBooking.id}`}
-                  className="inline-flex min-h-[40px] items-center gap-1.5 rounded-ctl border border-slate-300 px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-800 transition-colors"
-                >
-                  <Wallet className="h-4 w-4" aria-hidden />
-                  Catat pembayaran
-                </a>
+                {detailBooking.status === 'selesai' ? (
+                  <>
+                    <div className="flex justify-between gap-3 text-[13px] text-slate-700 dark:text-slate-300">
+                      <span>Total dibayar</span>
+                      <span className="tabular-nums font-semibold text-emerald-600 dark:text-emerald-400">
+                        {formatRp(
+                          (detailBooking.payments ?? [])
+                            .filter((p) => p.status === 'paid')
+                            .reduce((sum, p) => sum + toNumber(p.amount), 0)
+                        )}
+                      </span>
+                    </div>
+                    {(() => {
+                      const totalPaid = (detailBooking.payments ?? [])
+                        .filter((p) => p.status === 'paid')
+                        .reduce((sum, p) => sum + toNumber(p.amount), 0);
+                      const finalAmount = toNumber(detailBooking.final_cost ?? detailBooking.estimated_cost);
+                      const change = totalPaid - finalAmount;
+                      if (change > 0) {
+                        return (
+                          <div className="flex justify-between gap-3 rounded-ctl bg-emerald-50 px-2.5 py-1.5 text-[13px] font-semibold text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300">
+                            <span>Kembalian</span>
+                            <span className="tabular-nums">{formatRp(change)}</span>
+                          </div>
+                        );
+                      }
+                      if (change < 0) {
+                        return (
+                          <div className="flex justify-between gap-3 rounded-ctl bg-amber-50 px-2.5 py-1.5 text-[13px] font-semibold text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
+                            <span>Sisa belum lunas</span>
+                            <span className="tabular-nums">{formatRp(Math.abs(change))}</span>
+                          </div>
+                        );
+                      }
+                      return (
+                        <div className="flex justify-between gap-3 rounded-ctl bg-slate-100 px-2.5 py-1 text-[13px] text-slate-600 dark:bg-slate-800 dark:text-slate-400">
+                          <span>Kembalian</span>
+                          <span className="tabular-nums">Rp 0 (Lunas Pas)</span>
+                        </div>
+                      );
+                    })()}
+                  </>
+                ) : (
+                  <a
+                    href={`/admin/pembayaran?booking_id=${detailBooking.id}`}
+                    className="inline-flex min-h-[40px] items-center gap-1.5 rounded-ctl border border-slate-300 px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  >
+                    <Wallet className="h-4 w-4" aria-hidden />
+                    Catat pembayaran
+                  </a>
+                )}
                 {detailBooking.complaint_notes && (
                   <div className="mt-2 rounded-ctl bg-slate-50 px-3 py-2.5 dark:bg-slate-800/60">
                     <p className="text-[13px] font-semibold text-slate-900 dark:text-white">Keluhan pelanggan</p>
@@ -1060,6 +1166,76 @@ function BookingsPageContent() {
           )}
         </SheetContent>
       </Sheet>
+
+      {/* Warning Dialog: Pembatalan Booking yang Memiliki DP (Uang Hangat) */}
+      <AdminDialog
+        open={!!cancelWarning}
+        onClose={() => setCancelWarning(null)}
+        title="⚠️ Peringatan: Booking Memiliki DP (Uang Hangat)"
+        description="Booking ini memiliki pembayaran DP aktif yang wajib dikembalikan ke pelanggan."
+        size="md"
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => setCancelWarning(null)}
+              className={btnSecondary}
+            >
+              Kembali (Jangan Batalkan)
+            </button>
+            <button
+              type="button"
+              disabled={statusMutation.isPending}
+              onClick={() => {
+                if (!cancelWarning) return;
+                statusMutation.mutate({
+                  id: cancelWarning.bookingId,
+                  status: 'dibatalkan',
+                  note: cancelWarning.note
+                    ? `${cancelWarning.note} · [Refund DP ${formatRp(cancelWarning.dpAmount)}]`
+                    : `Dibatalkan oleh pihak bengkel. [Wajib Refund DP ${formatRp(cancelWarning.dpAmount)}]`
+                });
+                setCancelWarning(null);
+              }}
+              className={btnDanger}
+            >
+              {statusMutation.isPending ? 'Membatalkan...' : 'Ya, Batalkan & Proses Refund DP'}
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-3.5 text-sm">
+          <div className="rounded-xl border border-red-200 bg-red-50/80 p-3.5 text-red-900 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200">
+            <p className="font-semibold text-base text-red-700 dark:text-red-400">
+              Total DP Wajib Refund: {formatRp(cancelWarning?.dpAmount ?? 0)}
+            </p>
+            <p className="mt-1 text-xs text-red-800 dark:text-red-300 leading-relaxed">
+              Karena pembatalan dilakukan atas inisiatif pihak bengkel/admin, dana DP ini <strong>wajib dikembalikan penuh</strong> kepada pelanggan. Dana ini sebelumnya berstatus <em>Uang Hangat</em> (bukan pendapatan lunas bengkel).
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs dark:border-slate-800 dark:bg-slate-900">
+            <p className="font-medium text-slate-700 dark:text-slate-300">
+              Kontak Pelanggan untuk Konfirmasi Refund:
+            </p>
+            <p className="font-bold text-slate-900 dark:text-white mt-0.5">
+              {cancelWarning?.customerName} ({cancelWarning?.customerPhone || 'Tanpa no HP'})
+            </p>
+            {cancelWarning?.customerPhone && (
+              <a
+                href={`https://wa.me/${cancelWarning.customerPhone.replace(/\D/g, '').replace(/^0/, '62')}?text=${encodeURIComponent(
+                  `Halo ${cancelWarning.customerName}, kami dari bengkel ServiceGo mengonfirmasi bahwa booking kamu dibatalkan oleh pihak bengkel. Pengembalian dana DP (Uang Hangat) sebesar ${formatRp(cancelWarning.dpAmount)} akan kami proses. Mohon kirimkan nomor rekening tujuan pengembalian dana ya.`
+                )}`}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-2 inline-flex items-center gap-1.5 font-semibold text-emerald-600 hover:underline dark:text-emerald-400"
+              >
+                Chat WhatsApp Pelanggan untuk Pengembalian Dana &rarr;
+              </a>
+            )}
+          </div>
+        </div>
+      </AdminDialog>
     </div>
   );
 }
